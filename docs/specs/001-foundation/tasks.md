@@ -99,11 +99,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
   - 結果: 完了条件を満たした（jose 6.2.12、zod 4.6.5）。ミドルウェアは CORS → トークンの検証 → DB を開く → 家族の照合 → `/me` の順で、トークンが無効な要求では DB を開かない（タグなしのテストで確かめた）。トークンの検証は `jwtVerify` で、署名（JWKS）と期限に加えて、発行元（`<SUPABASE_URL>/auth/v1`）・宛先（`authenticated`）・アルゴリズム（ES256 だけ）・`sub` が UUID の形であることを確かめる（開発の Supabase の JWKS と OpenID の設定で、ES256 と発行元の形を確かめた）。JWKS を取りに行けないなど、トークンのせいでない失敗は 401 にせず投げ直す（T-10 で 500 と Sentry）。DB は要求ごとに postgres.js（`max: 5`、`fetch_types: false`）で開き、応答の後に `waitUntil` で閉じる。テストでは PGlite を渡す。エラーの形の Zod スキーマ（`apiErrorSchema`）も `@stylus/shared` に置いた。`wrangler.toml` の `[env.dev.vars]` に `SUPABASE_URL`（stylus-dev）を入れた。本番の値は T-25 で入れる（T-25 の内容に足した）。`AppType` で `hc<AppType>` から `/me` の応答の型が引けることを確かめた。ローカルの `wrangler dev --env dev` で、トークンなしと、本物の kid を名乗る偽の署名がどちらも 401 になること（本物の JWKS を取りに行って検証した）を確かめた。登録済みの本人のトークンでの確認は T-24 で行う
 
-- [ ] T-9: ロール・立場の判定
+- [x] T-9: ロール・立場の判定
   - 対応: COMMON-N-002 / AC-1, AC-2, AC-3, AC-4
   - 対象ファイル: `apps/api/src/middleware/guards.ts`（`requireAdmin()`、`requireAttribute('cook')` など）、`apps/api/src/middleware/guards.test.ts`（判定を付けたルートはテストの中だけで組み立てる）
-  - Red: 未記録（想定：何もしない形の判定では、息子のトークンで料理担当ルート、母のトークンで管理者ルートが 200 になり 403 にならない）
+  - Red: 何もしない形の `requireAdmin()`・`requireAttribute()` を置いて `pnpm exec vitest run apps/api/src/middleware/guards.test.ts` で失敗。AC-1（息子のトークンで料理担当ルート）と AC-3（母のトークンで管理者ルート）がどちらも「expected 200 to be 403」。AC-2・AC-4 は何もしない形でも通った（ほかにタグなしの「親だけ」のテストで、せいご・息子が 200 になって失敗）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る。本番のアプリに判定確認用のルートが含まれていない
+  - 結果: 完了条件を満たした。`requireAdmin()` と `requireAttribute('parent' | 'cook')` は家族の照合の後ろで `c.var.member` を見て、足りなければ 403 `forbidden` を返す。判定を付けたルートはテストの中で `createTestApp()` のアプリ（本番と同じ組み立て）に足した。`createApp()` のルートに判定確認用のパスが無く `/me` があることをタグなしのテストで確かめた。立場「親」（父・母は 200、せいご・息子は 403）もタグなしのテストで確かめた
 
 - [ ] T-10: 予期しないエラーを 500 にして Sentry へ送る（API）
   - 対応: COMMON-N-011 / AC-1, AC-2
