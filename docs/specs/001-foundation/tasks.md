@@ -51,12 +51,13 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 ## 1. DB
 
-- [ ] T-3: テスト用 DB の仕組みと `members` の表（列だけ）を作る
+- [x] T-3: テスト用 DB の仕組みと `members` の表（列だけ）を作る
   - 対応: AUTH-F-001（土台）
   - 対象ファイル: `apps/api/drizzle.config.ts`、`apps/api/src/db/schema.ts`、`apps/api/drizzle/*.sql`、`apps/api/test/db.ts`（PGlite にマイグレーションを当てるヘルパー）
   - 内容: design.md「データモデル」の列を作る（主キー・既定値まで。一意・空不可・小文字・空白だけ不可の制約は T-4 で足す）。テストは PGlite に Drizzle のマイグレーションを当てて使う
   - Red: 対象外（DB 変更）
   - 完了条件: マイグレーションが PGlite に当たり、テスト全体が通る
+  - 結果: 完了条件を満たした（drizzle-orm 0.45.3、drizzle-kit 0.31.11、PGlite 0.5.8）。マイグレーションは `apps/api/drizzle/0000_members.sql`、作り直しは `pnpm --filter api db:generate`。`email`・`display_name` は NULL 可のまま置き、空不可（NOT NULL と空・空白だけの禁止）は T-4 でまとめて足す。既定値を持つ `is_admin`・`is_parent`・`is_cook`・`created_at` は NOT NULL にした。ヘルパー `createTestDb()` はテストごとにメモリ上の PGlite を作ってマイグレーションを当てる。ヘルパー自体の確認に `apps/api/test/db.test.ts`（AC なし）を置いた。drizzle-orm＋postgres.js が Workers 向けにバンドルできることを `wrangler deploy --dry-run` で確かめた（約 310 KiB）。テスト・設定ファイルが Node の API を使うため `@types/node` を足し、`apps/api/tsconfig.json` の対象に `test` と `drizzle.config.ts` を加えた。drizzle-kit が生成する `drizzle/meta/` は Prettier の対象から外した
 
 - [ ] T-4: 家族の登録で、重複・空・大文字を拒否する
   - 対応: AUTH-F-001 / AC-2, AC-3, AC-4, AC-5

@@ -4,14 +4,19 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --env dev",
+    "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.3",
     "hono": "^4.13.9",
     "postgres": "^3.4.9"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260926.1",
+    "@electric-sql/pglite": "^0.5.8",
+    "@types/node": "^24.19.0",
+    "drizzle-kit": "^0.31.11",
     "wrangler": "^4.141.0"
   }
 }

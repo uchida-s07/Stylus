@@ -3,3 +3,5 @@ pnpm-lock.yaml
 **/dist/
 **/coverage/
 **/.wrangler/
+# drizzle-kit が生成するもの
+apps/api/drizzle/meta/
