@@ -192,6 +192,21 @@ handoff 5章の検証項目（V-4 は作れない日の spec へ移した）。�
 | V-3 | Workers の無料プランで Hyperdrive から Supabase につなげるか | Supavisor のトランザクションモード（`prepare: false`）。この場合、接続文字列を Workers の secret に置く | なし |
 | V-5 | Pages のプロジェクト名 `stylus` が使えるか | **確かめ済み（2026-09-27）：`stylus.pages.dev` は他人が使っていて取れない。** プロジェクト名は `stylus-family`（`https://stylus-family.pages.dev`）にした（オーナー決定）。プロジェクトを作るときに実際にこの URL になったかを確かめ、違えば CORS と Supabase Auth に反映する | spec の COMMON-N-005 は `stylus-family.pages.dev` で書いてある |
 
+### 検証の結果（T-2）
+
+| # | 結果 | 日付 |
+|---|---|---|
+| V-1 | **合格。代替は不要で、spec は直さない。** 開発（`stylus-dev`）で確かめた：(a) Email のログイン方法を無効にしたままでも、管理画面（Add user → Create new user、Auto Confirm User）でメールアドレスの利用者を作れた。(b) サインアップ無効のまま、その利用者が Supabase の authorize URL から Google でログインできた。(c) 利用者は増えず（`auth.users` は1行のまま、`id` も同じ）、`auth.identities` に `google` が1件加わった。`raw_app_meta_data` はログイン前 `{"provider":"email","providers":["email"]}`、ログイン後 `{"provider":"email","providers":["email","google"]}`（`provider` は `email` のまま。見込みどおりで、`sub` で照合する方式のまま動く） | 2026-09-27 |
+| V-5 | **合格。** Pages のプロジェクト `stylus-family` を GitHub（`uchida-s07/Stylus`、本番ブランチ `main`、全ブランチでプレビュー）とつなぎ、URL は `https://stylus-family.pages.dev` になった。CORS・Supabase Auth の値は変えなくてよい | 2026-09-27 |
+
+T-2 で決めたこと（2026-09-27 オーナー決定）：
+
+- Supabase のリージョンは Tokyo（ap-northeast-1）。作るときに「Enable Data API」「Automatically expose new tables」を外し、「Enable automatic RLS」を入れた（RLS はマイグレーションでも有効にする。二重の備え）。JWT の署名鍵は最初から ECC（P-256）だった
+- 本番の Supabase `stylus` は、T-25（本番に出す）の手前まで作らない。Cron（T-11）が動く前に作ると、7日間アクセスが無く休止するため。本番の Auth の設定と本番用の OAuth クライアントもそのときに行う
+- Google の OAuth 同意画面は公開せず「テスト中」のまま使い、使う Google アカウントをテストユーザーに登録する。公開するにはホームページとプライバシーポリシーの URL が必須で、そのページが無いため。家族以外は Google の画面で止まる（Supabase のサインアップ無効に加えた守り）。テストユーザーは、同意から7日たつと Google の同意画面がもう一度出ることがある（アプリのログイン状態は Supabase が持つので切れない）。本番でどうするかは本番の準備のときに決める
+- 開発の Supabase の URL 設定：Site URL は `http://localhost:5173`、Redirect URLs は `http://localhost:5173/**` と `https://*.stylus-family.pages.dev/**`
+- Pages のビルド：ビルドコマンド `pnpm --filter web build`、出力 `apps/web/dist`、ルートはリポジトリの一番上。Node の版は `.node-version`（24）、pnpm の版は環境変数 `PNPM_VERSION`（本番・プレビューとも `12.6.0`。ビルド環境の既定は 10 系のため）で合わせる。`VITE_SUPABASE_URL`・`VITE_SUPABASE_PUBLISHABLE_KEY` はプレビューにだけ `stylus-dev` の値を入れ、本番は本番の Supabase を作るときに入れる
+
 そのほかの懸念：
 
 - Hyperdrive はクエリの結果をキャッシュする。Cron の問い合わせがキャッシュで返ると DB に届かないので、Cron ではキャッシュを使わない接続にするか、キャッシュされない問い合わせにする
