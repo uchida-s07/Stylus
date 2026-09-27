@@ -1,10 +1,12 @@
 import type { MeResponse } from '@stylus/shared'
-import { Container, Stack, Text, Title } from '@mantine/core'
+import { Button, Container, Group, Stack, Text, Title } from '@mantine/core'
 import { useEffect, useState } from 'react'
 import { api, NetworkError } from '../api/client'
+import { signOutLocally } from '../auth/logout'
 import { useLeaveAsUnregistered } from '../auth/unregistered'
 import { ErrorScreen, type ErrorKind } from '../components/ErrorScreen'
 import { Loading } from '../components/Loading'
+import { LogoutConfirm } from '../components/LogoutConfirm'
 
 type HomeState =
   { kind: 'loading' } | { kind: 'ready'; me: MeResponse } | { kind: 'error'; error: ErrorKind }
@@ -13,6 +15,7 @@ type HomeState =
 // 家族として登録されていなければ（403）ログイン画面へ。通信できない・読み込めないときは知らせる（端末のセッションは消さない）
 export function HomePage() {
   const [state, setState] = useState<HomeState>({ kind: 'loading' })
+  const [confirmingLogout, setConfirmingLogout] = useState(false)
   const leaveAsUnregistered = useLeaveAsUnregistered()
 
   useEffect(() => {
@@ -33,9 +36,19 @@ export function HomePage() {
   return (
     <Container component="main" aria-label="ホーム" py="xl">
       <Stack>
-        <Title order={1}>Stylus</Title>
+        <Group justify="space-between">
+          <Title order={1}>Stylus</Title>
+          <Button variant="default" onClick={() => setConfirmingLogout(true)}>
+            ログアウト
+          </Button>
+        </Group>
         <Text size="xl">{state.me.displayName}</Text>
       </Stack>
+      <LogoutConfirm
+        opened={confirmingLogout}
+        onClose={() => setConfirmingLogout(false)}
+        onConfirm={signOutLocally}
+      />
     </Container>
   )
 }

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { AUTH_STORAGE_KEY } from './storage-key'
 
 // フロントが supabase-js を使うのは、ログイン・ログアウト・セッションの管理だけ（データの読み書きは API を通す）
 // セッションは supabase-js が端末の保存領域に持ち、アクセストークンの更新も任せる
@@ -6,5 +7,5 @@ import { createClient } from '@supabase/supabase-js'
 export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-  { auth: { flowType: 'pkce', detectSessionInUrl: false } },
+  { auth: { flowType: 'pkce', detectSessionInUrl: false, storageKey: AUTH_STORAGE_KEY } },
 )

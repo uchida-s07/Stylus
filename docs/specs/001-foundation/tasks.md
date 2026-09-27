@@ -178,10 +178,11 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - Red: T-17 の画面のまま（`ErrorScreen` とテストだけ先に置いた）で `pnpm exec vitest run apps/web/src/pages/error-states.test.tsx` を実行して5件失敗。AC-3・AC-7・APP-F-001/AC-3 と、401 の分かれ道の画面の確認2件（送り直しても 401、更新が通信エラー）が、どれも「Unable to find role="alert"」。AC-3 はログイン画面に送られ、AC-7 と送り直しても 401 は読み込み中のまま、APP-F-001/AC-3 と更新が通信エラーは `NetworkError` が捕まえられずに「Unhandled Rejection」になって読み込み中のまま。AC-6 と、ログイン状態が無効ならログイン画面が出る確認は、変更前のコードで通った（403 の扱いは T-16、無効なときにセッションを消すのは T-17）。あとから足した `authorizedFetch` の単体テスト（期限切れのトークンを通信できずに更新できなければトークン無しでは送らない）は、`pnpm exec vitest run apps/web/src/api/client.test.ts` で「expected [ …(1) ] to have a length of +0 but got 1」（トークン無しで API へ送っていた）で失敗することを確かめてから直した
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
-- [ ] T-19: ログアウト
+- [x] T-19: ログアウト
   - 対応: AUTH-F-004 / AC-1, AC-2, AC-3, AC-4
-  - 対象ファイル: `apps/web/src/pages/HomePage.tsx`（「ログアウト」ボタン）、`apps/web/src/components/LogoutConfirm.tsx`（Mantine のダイアログ）、`apps/web/src/auth/logout.ts`（`signOut({ scope: 'local' })`、失敗時は保存領域のセッションを自分で消す）、`apps/web/src/pages/logout.test.tsx`
-  - Red: 未記録（想定：確認で「ログアウト」を選んでもログイン画面にならない／通信エラー時にセッションが残る／`scope: 'local'` 以外で呼んでいる）
+  - 対象ファイル: `apps/web/src/pages/HomePage.tsx`（「ログアウト」ボタン）、`apps/web/src/components/LogoutConfirm.tsx`（Mantine のダイアログ）、`apps/web/src/auth/logout.ts`（`signOut({ scope: 'local' })`、失敗時は保存領域のセッションを自分で消す）、`apps/web/src/pages/logout.test.tsx`、`apps/web/src/auth/storage-key.ts`・`supabase.ts`・`unregistered.ts`、`apps/web/test/fakeSupabase.ts`
+  - 実装メモ: 自分で消すために、supabase-js の保存領域のキーを `apps/web/src/auth/storage-key.ts` の `stylus-auth` に決めた（既定のキー名に頼らない。開発環境でログイン済みの端末は一度ログインし直しになる）。`signOutLocally()` は `signOut({ scope: 'local' })` がエラーを返すか投げたら、保存領域から消してもう一度呼ぶ（消えたセッションには通信せず SIGNED_OUT を知らせてもらう）。未登録（403）のときの `useLeaveAsUnregistered` も `signOutLocally()` を使うようにした。テスト用の偽の supabase-js は、セッションを jsdom の localStorage の同じキーに置き、`signOut` を supabase-js 2.117 に合わせた（先にセッションを読み、期限切れで更新できなければ消さずにエラー、取り消しを送れなくても端末のセッションは消してエラー、scope の既定は global）。Auth サーバーの代わりに `logout`（local／global／others の取り消し）と `hasLogin` を足した
+  - Red: 中身の無い `signOutLocally()`（何もしない）と「ログアウト」ボタン・確認のダイアログを置いて `pnpm exec vitest run apps/web/src/pages/logout.test.tsx` を実行し、AC-1・AC-3（2件）・AC-4 の4件が「Unable to find role="main" and name "ログイン"」で失敗（確認で「ログアウト」を選んでもホームのまま）。AC-2 は中身の無い形でも通った。あわせて、ありがちな誤りをテストが捕まえるかを確かめた。`signOut()`（scope なし＝global）にすると AC-4 が「expected false to be true」（端末 B のログイン状態が取り消された）と AC-3 の期限切れの方で失敗。`signOut({ scope: 'local' })` だけ（自分では消さない）にすると AC-3 の期限切れの方が「Unable to find role="main" and name "ログイン"」で失敗
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
 - [ ] T-20: PWA のマニフェストと Service Worker
