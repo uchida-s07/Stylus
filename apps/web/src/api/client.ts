@@ -30,7 +30,9 @@ async function send(input: RequestInfo | URL, init: RequestInit | undefined, tok
 // - 更新が通信エラーで失敗：ログイン状態は残して NetworkError
 // - 送り直しても 401：そのまま返す
 export async function authorizedFetch(input: RequestInfo | URL, init?: RequestInit) {
-  const { data } = await supabase.auth.getSession()
+  const { data, error: sessionError } = await supabase.auth.getSession()
+  // 期限切れのトークンを通信できずに更新できなかった：トークン無しでは送らない
+  if (isAuthRetryableFetchError(sessionError)) throw new NetworkError({ cause: sessionError })
   const res = await send(input, init, data.session?.access_token)
   if (res.status !== 401) return res
 

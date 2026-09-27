@@ -75,6 +75,16 @@ describe('authorizedFetch', () => {
     expect(fakeSupabase.storedSession()).not.toBeNull()
   })
 
+  it('期限切れのトークンを通信できずに更新できなければ、トークン無しでは送らずに NetworkError にする', async () => {
+    fakeSupabase.setStoredSession(testSession({ expires_at: Math.floor(Date.now() / 1000) - 60 }))
+    fakeSupabase.server.setOffline(true)
+    const { requests } = installFakeApi({ 'GET /me': meRoute(MOTHER) })
+
+    await expect(authorizedFetch(ME_URL)).rejects.toBeInstanceOf(NetworkError)
+    expect(requests).toHaveLength(0)
+    expect(fakeSupabase.storedSession()).not.toBeNull()
+  })
+
   it('API へ届かなければ、NetworkError にしてログイン状態は残す', async () => {
     fakeSupabase.setStoredSession(testSession())
     vi.stubGlobal(

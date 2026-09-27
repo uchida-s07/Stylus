@@ -33,6 +33,11 @@ export function installFakeApi(routes: Record<string, Handler>) {
 
 export const json = (body: unknown, status = 200) => Response.json(body, { status })
 
+// 通信できない（ブラウザの fetch と同じく TypeError で失敗する）
+export const networkDown: Handler = () => {
+  throw new TypeError('Failed to fetch')
+}
+
 // API の GET /me の代わり。本物と同じく、アクセストークンが通らなければ 401 を返す
 // （トークンは Supabase の偽物のサーバーが発行し、期限が切れていないものだけ通す）
 export function meRoute(member: MeResponse): Handler {

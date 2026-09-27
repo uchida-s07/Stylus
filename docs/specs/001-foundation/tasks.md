@@ -170,11 +170,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - Red: `authorizedFetch` を中身の無い形（トークンを付けて1回送るだけ）にして `pnpm exec vitest run apps/web/src/auth/session.test.tsx apps/web/src/api/client.test.ts` を実行し、401 の分かれ道の6件が失敗。「expected 401 to be 200」（更新して送り直さない）、「expected [ …(1) ] to have a length of 2 but got 1」（送り直しても 401 の確認で1回しか送っていない）、「expected "vi.fn()" to be called with arguments: [ { scope: 'local' } ]」（ログイン状態が無効でもセッションを消さない）、「promise resolved "Response { status: 401, … }" instead of rejecting」（更新が通信エラーでも NetworkError にならない）、「expected TypeError: Failed to fetch to be an instance of NetworkError」、画面の確認（署名鍵の入れ替え）は「Unable to find an element with the text: 母」。AC-1・AC-2・AC-4・AC-5 の4件は、偽物を supabase-js の振る舞いに合わせた上で、変更前のコードのままで通った。期限切れのトークンの更新と無効なログイン状態の破棄は supabase-js が行い、画面は T-14 で更新後の INITIAL_SESSION を待ってから振り分けているため（想定していた「更新を待たずに判定する」形は T-14 の時点で避けていた）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
-- [ ] T-18: 通信できない・読み込めない・登録から外されたときの表示
+- [x] T-18: 通信できない・読み込めない・登録から外されたときの表示
   - 対応: AUTH-F-003 / AC-3, AC-6, AC-7、APP-F-001 / AC-3
-  - 対象ファイル: `apps/web/src/components/ErrorScreen.tsx`（「通信できません。…」「うまく読み込めませんでした。…」）、`apps/web/src/auth/session.tsx`、`apps/web/src/pages/HomePage.tsx`、`apps/web/src/pages/error-states.test.tsx`
+  - 対象ファイル: `apps/web/src/components/ErrorScreen.tsx`（「通信できません。…」「うまく読み込めませんでした。…」）、`apps/web/src/auth/session.tsx`、`apps/web/src/pages/HomePage.tsx`、`apps/web/src/pages/error-states.test.tsx`、`apps/web/src/auth/session-context.ts`・`guards.tsx`、`apps/web/src/api/client.ts`・`client.test.ts`、`apps/web/test/fakeApi.ts`
   - 内容: セッションを消すのは、ログアウト・Supabase が無効と返したとき・API が 403 `not_a_member` を返したときだけ（design.md「フロント」）
-  - Red: 未記録（想定：ネットワークエラー・500 でメッセージが出ない、または端末のセッションが消える。403 で未登録のメッセージが出ない）
+  - 実装メモ: 端末のログイン状態に `offline`（セッションは残っているが、期限切れのトークンを通信できずに更新できなかった）を足した。INITIAL_SESSION でセッションが届かなかったときに `getSession()` のエラーが通信エラーかを確かめて見分ける（通知の中で supabase-js を待たないよう `setTimeout` で後に回す）。見張りは `offline` ならログイン画面へ送らず「通信できません。…」を出す。ホームは `NetworkError` なら「通信できません。…」、403 以外の失敗（500、送り直しても 401）なら「うまく読み込めませんでした。…」。`authorizedFetch` は、期限切れのトークンを通信できずに更新できなかったときにトークン無しで送らず `NetworkError` にする
+  - Red: T-17 の画面のまま（`ErrorScreen` とテストだけ先に置いた）で `pnpm exec vitest run apps/web/src/pages/error-states.test.tsx` を実行して5件失敗。AC-3・AC-7・APP-F-001/AC-3 と、401 の分かれ道の画面の確認2件（送り直しても 401、更新が通信エラー）が、どれも「Unable to find role="alert"」。AC-3 はログイン画面に送られ、AC-7 と送り直しても 401 は読み込み中のまま、APP-F-001/AC-3 と更新が通信エラーは `NetworkError` が捕まえられずに「Unhandled Rejection」になって読み込み中のまま。AC-6 と、ログイン状態が無効ならログイン画面が出る確認は、変更前のコードで通った（403 の扱いは T-16、無効なときにセッションを消すのは T-17）。あとから足した `authorizedFetch` の単体テスト（期限切れのトークンを通信できずに更新できなければトークン無しでは送らない）は、`pnpm exec vitest run apps/web/src/api/client.test.ts` で「expected [ …(1) ] to have a length of +0 but got 1」（トークン無しで API へ送っていた）で失敗することを確かめてから直した
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
 - [ ] T-19: ログアウト
