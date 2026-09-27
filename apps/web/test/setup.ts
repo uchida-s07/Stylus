@@ -8,6 +8,13 @@ vi.mock('../src/auth/supabase', () => ({ supabase: fakeSupabase }))
 
 beforeEach(() => {
   fakeSupabase.reset()
+  // テストが本物のネットワークへ出ないように。API を使うテストは installFakeApi で差し替える
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      throw new Error(`テストで API の偽物を用意していない: ${String(input)}`)
+    }),
+  )
 })
 
 afterEach(() => {

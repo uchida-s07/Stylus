@@ -1,4 +1,5 @@
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+import { vi } from 'vitest'
 
 type Listener = (event: AuthChangeEvent, session: Session | null) => void
 
@@ -6,6 +7,7 @@ type Listener = (event: AuthChangeEvent, session: Session | null) => void
 function createFakeSupabase() {
   let session: Session | null = null
   const listeners = new Set<Listener>()
+  const notify = (event: AuthChangeEvent) => listeners.forEach((l) => l(event, session))
 
   const auth = {
     onAuthStateChange(listener: Listener) {
@@ -17,6 +19,17 @@ function createFakeSupabase() {
     async getSession() {
       return { data: { session }, error: null }
     },
+    // 本物は Google の画面へ移る。テストでは呼ばれたことだけを記録する
+    signInWithOAuth: vi.fn<(credentials: unknown) => Promise<unknown>>(async () => ({
+      data: { provider: 'google', url: 'https://accounts.google.com/o/oauth2/auth' },
+      error: null,
+    })),
+    // Google から戻ってきたコードをセッションに引き換える。本物と同じく、保存してから SIGNED_IN を知らせる
+    exchangeCodeForSession: vi.fn<(code: string) => Promise<unknown>>(async () => {
+      session = testSession()
+      notify('SIGNED_IN')
+      return { data: { session, user: session.user }, error: null }
+    }),
   }
 
   return {
@@ -27,6 +40,8 @@ function createFakeSupabase() {
     reset() {
       session = null
       listeners.clear()
+      auth.signInWithOAuth.mockClear()
+      auth.exchangeCodeForSession.mockClear()
     },
   }
 }

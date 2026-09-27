@@ -11,7 +11,9 @@
   "dependencies": {
     "@mantine/core": "^9.6.3",
     "@mantine/hooks": "^9.6.3",
+    "@stylus/shared": "workspace:*",
     "@supabase/supabase-js": "^2.117.2",
+    "hono": "^4.13.9",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router": "^8.4.0"

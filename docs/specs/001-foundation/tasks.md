@@ -148,11 +148,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
   - 結果: 完了条件を満たした（@supabase/supabase-js 2.117.2。テストに @testing-library/react・jest-dom・user-event と jsdom）。`RequireSignedIn`・`RedirectIfSignedIn`（`src/auth/guards.tsx`）でルートを包み、端末のセッションを読み終えるまでは読み込み中を出す（ログイン画面が一瞬出ないことをタグなしのテストで確かめた）。ログイン状態は supabase-js の `onAuthStateChange` の最初の通知（`INITIAL_SESSION`）から取る（`SessionProvider`）。画面全体の組み立ては `src/app/AppRoot.tsx` にまとめ、`main.tsx` とテスト（`test/render.tsx`、メモリ上のルーター）で同じものを使う。supabase-js は `test/setup.ts` で `test/fakeSupabase.ts` の偽物に差し替える。Mantine が使う `matchMedia`・`ResizeObserver` は setup で補った。画面はそれぞれ `<main>` に名前（「ログイン」「ホーム」）を付けて見分ける。ログイン画面の「Google でログイン」ボタンは置いただけで、押したときの動きは T-15。`/auth/callback` は読み込み中を出すだけの形（中身は T-15）。環境変数の型は `src/vite-env.d.ts`。本番用ビルドも通った（JS 585 kB・gzip 170 kB で 500 kB 超えの注意が出るが、大半が Mantine と supabase-js で、T-20 で端末に保存するので分割はしない）
 
-- [ ] T-15: Google でログインしてホームに表示名を出す
+- [x] T-15: Google でログインしてホームに表示名を出す
   - 対応: AUTH-F-002 / AC-1
   - 対象ファイル: `apps/web/src/api/client.ts`（Hono RPC の `hc<AppType>`、`import type` のみ、`Authorization: Bearer` を付ける）、`apps/web/src/pages/LoginPage.tsx`（「Google でログイン」）、`apps/web/src/pages/AuthCallbackPage.tsx`、`apps/web/src/pages/HomePage.tsx`、`apps/web/src/pages/login-flow.test.tsx`
-  - Red: 未記録（想定：ホームが `GET /me` を呼ばず「母」が表示されない）
+  - Red: T-14 の画面のまま（ボタンを押しても何もしない、戻り先は読み込み中を出すだけ、ホームは `GET /me` を呼ばない）で `pnpm exec vitest run apps/web/src/pages/login-flow.test.tsx` を実行して失敗。「expected "vi.fn()" to be called with arguments: [ { provider: 'google', …(1) } ]」（「Google でログイン」を押してもログインが始まらない）。想定していた「`GET /me` を呼ばず『母』が出ない」より手前の確認で落ちたが、どちらも「ログインしてホームに表示名が出る」がまだ無いことによる
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした。「Google でログイン」は `signInWithOAuth({ provider: 'google' })` で、戻り先は `<origin>/auth/callback`。supabase-js には URL を自動で読ませず（`detectSessionInUrl: false`）、`/auth/callback` で `exchangeCodeForSession(code)` を1回だけ呼ぶ（開発時の StrictMode で2回走らないように）。ログイン状態になったらホームへ送る。ホームは `GET /me` の表示名を出す。API の呼び出しは `src/api/client.ts` の `hc<AppType>` で、型は `import type` で `apps/api/src/app` から取り、supabase-js のセッションのアクセストークンを `Authorization: Bearer` で付ける。フロントに API と同じ版の `hono` と `@stylus/shared` を足した。`apps/api/src/env.ts` の `HYPERDRIVE` の型を、Workers の全体の型 `Hyperdrive` から `{ connectionString: string }` に替えた（フロントの型チェックが `AppType` を読むとき Workers の型が無いため）。テストは `test/fakeApi.ts` で `fetch` を差し替え、届いた要求の `Authorization` も確かめる。テストが本物のネットワークへ出ないように、setup で既定の `fetch` を失敗させる形にし、T-14 のテストに `/me` の偽物を足した。`VITE_API_URL` はテストでは `https://api.test`。本物の Google ログインは T-24 で確かめる
 
 - [ ] T-16: ログインの失敗・未登録・キャンセルの扱い
   - 対応: AUTH-F-002 / AC-2, AC-3, AC-6, AC-7

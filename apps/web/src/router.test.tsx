@@ -1,5 +1,6 @@
 import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { installFakeApi, json, MOTHER } from '../test/fakeApi'
 import { fakeSupabase, testSession } from '../test/fakeSupabase'
 import { renderApp } from '../test/render'
 
@@ -7,6 +8,10 @@ const loginScreen = () => screen.findByRole('main', { name: 'ログイン' })
 const homeScreen = () => screen.findByRole('main', { name: 'ホーム' })
 
 describe('ログイン状態による画面の振り分け（AUTH-F-002）', () => {
+  beforeEach(() => {
+    installFakeApi({ 'GET /me': () => json(MOTHER) })
+  })
+
   it('[AUTH-F-002/AC-4] この端末でログインしていないとき、ホームの URL を直接開くとログイン画面が出る', async () => {
     const { router } = renderApp('/')
 

@@ -5,7 +5,9 @@ import type { members } from './db/schema'
 export type WorkerBindings = {
   CORS_ALLOWED_ORIGINS: string[]
   SUPABASE_URL: string
-  HYPERDRIVE: Hyperdrive
+  // Hyperdrive のバインディング（使うのは接続文字列だけ）。Workers の全体の型 Hyperdrive を使わないのは、
+  // フロントが import type で AppType を読むとき（Workers の型が無い）にも型が解けるようにするため
+  HYPERDRIVE: { connectionString: string }
   // Sentry（COMMON-N-011）。DSN が無ければ送らない
   SENTRY_DSN?: string
   SENTRY_ENVIRONMENT: string
