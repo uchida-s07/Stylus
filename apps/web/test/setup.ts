@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, vi } from 'vitest'
+import { setLoginNotice } from '../src/auth/errors'
 import { fakeSupabase } from './fakeSupabase'
 
 // supabase-js をテスト用の偽物に差し替える
@@ -8,6 +9,7 @@ vi.mock('../src/auth/supabase', () => ({ supabase: fakeSupabase }))
 
 beforeEach(() => {
   fakeSupabase.reset()
+  setLoginNotice(undefined)
   // テストが本物のネットワークへ出ないように。API を使うテストは installFakeApi で差し替える
   vi.stubGlobal(
     'fetch',

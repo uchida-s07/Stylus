@@ -155,11 +155,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
   - 結果: 完了条件を満たした。「Google でログイン」は `signInWithOAuth({ provider: 'google' })` で、戻り先は `<origin>/auth/callback`。supabase-js には URL を自動で読ませず（`detectSessionInUrl: false`）、`/auth/callback` で `exchangeCodeForSession(code)` を1回だけ呼ぶ（開発時の StrictMode で2回走らないように）。ログイン状態になったらホームへ送る。ホームは `GET /me` の表示名を出す。API の呼び出しは `src/api/client.ts` の `hc<AppType>` で、型は `import type` で `apps/api/src/app` から取り、supabase-js のセッションのアクセストークンを `Authorization: Bearer` で付ける。フロントに API と同じ版の `hono` と `@stylus/shared` を足した。`apps/api/src/env.ts` の `HYPERDRIVE` の型を、Workers の全体の型 `Hyperdrive` から `{ connectionString: string }` に替えた（フロントの型チェックが `AppType` を読むとき Workers の型が無いため）。テストは `test/fakeApi.ts` で `fetch` を差し替え、届いた要求の `Authorization` も確かめる。テストが本物のネットワークへ出ないように、setup で既定の `fetch` を失敗させる形にし、T-14 のテストに `/me` の偽物を足した。`VITE_API_URL` はテストでは `https://api.test`。本物の Google ログインは T-24 で確かめる
 
-- [ ] T-16: ログインの失敗・未登録・キャンセルの扱い
+- [x] T-16: ログインの失敗・未登録・キャンセルの扱い
   - 対応: AUTH-F-002 / AC-2, AC-3, AC-6, AC-7
   - 対象ファイル: `apps/web/src/pages/AuthCallbackPage.tsx`、`apps/web/src/pages/LoginPage.tsx`、`apps/web/src/auth/errors.ts`（戻り先のエラーの読み分け：`signup_disabled` 等・403 `not_a_member` → 未登録、`access_denied` → 何も出さない、それ以外 → 失敗）、`apps/web/src/pages/login-errors.test.tsx`
-  - Red: 未記録（想定：エラー付きで戻ってもメッセージが出ない／セッションが残り、開き直すとログイン画面にならない）
+  - Red: T-15 の画面のままで `pnpm exec vitest run apps/web/src/pages/login-errors.test.tsx` を実行して9件すべて失敗。AC-2・AC-3・AC-6 は「Unable to find role="alert"」（エラー付きで戻っても、API が 403 を返しても、Google の画面へ移れなくても、メッセージが出ない。戻り先はコードが無いと読み込み中のまま、ホームは 403 でも読み込み中のまま）。AC-7 は「Unable to find role="main" and name "ログイン"」（キャンセルで戻っても戻り先が読み込み中のままでログイン画面にならない）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした。戻り先の URL の読み分けは `readCallback()`（`src/auth/errors.ts`）で、? の後ろと # の後ろの両方を見る。`error_code=signup_disabled` → 未登録、`error=access_denied` でほかの `error_code` が無い → キャンセル（メッセージなし）、それ以外のエラーやコードもエラーも無い → 失敗。弾かれたときも `error=access_denied` が付きうるので `error_code` を先に見る。コードの引き換えの失敗と、Google の画面へ移れないとき（`signInWithOAuth` のエラー）も失敗にする。ホームが `GET /me` で 403 を受けたら、`signOut({ scope: 'local' })` で端末のセッションを消し、見張りがログイン画面へ送る。ログイン画面に出すメッセージは、最初はルーターの state で渡したが、セッションを消したときに見張り（`RequireSignedIn`）の移動と競合してメッセージが消えたため、メモリに置く形（`setLoginNotice`）にした。ログイン画面は開いたときに一度だけ出して消す。メモリなのでアプリを開き直すと消える（AC-6）。Supabase が実際に戻すエラーの形（`error_code` の値と、? と # のどちらに付くか）は T-24 で未登録のアカウントとキャンセルを試して確かめる（T-24 に足した）
 
 - [ ] T-17: ログインしたまま使い続けられる
   - 対応: AUTH-F-003 / AC-1, AC-2, AC-4, AC-5
@@ -216,7 +217,7 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 対応: design.md「移行計画」5、「テストの方針」の手で確かめるもの、COMMON-N-003 / COMMON-N-007 / COMMON-N-008 の測り方
   - 対象ファイル: なし（結果は tasks.md のこの欄に書く）
   - 内容: 開発の Worker に Sentry の DSN を入れる（`wrangler secret put SENTRY_DSN --env dev`。T-10 で足した）→ 開発に家族（少なくとも管理者）を登録（design.md「家族の登録の仕方」）→ プレビュー URL で次を確かめる
-    - Google ログイン（登録済み・未登録）
+    - Google ログイン（登録済み・未登録）と、Google の画面でのキャンセル。未登録とキャンセルで Supabase が戻すエラーの形が `readCallback()` の読み分けと合っているか（T-16 で足した）
     - Android の Chrome で端末のホーム画面に追加し、アドレスバーなしで開く。新しい版に切り替わる
     - standalone でログアウト → Google で再ログインしてホームに戻れる
     - 2台の端末で、片方のログアウトがもう片方に響かない

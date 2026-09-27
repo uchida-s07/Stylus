@@ -8,6 +8,8 @@ function createFakeSupabase() {
   let session: Session | null = null
   const listeners = new Set<Listener>()
   const notify = (event: AuthChangeEvent) => listeners.forEach((l) => l(event, session))
+  // 次のコードの引き換えを失敗させるときのエラー
+  let exchangeError: Error | null = null
 
   const auth = {
     onAuthStateChange(listener: Listener) {
@@ -26,9 +28,16 @@ function createFakeSupabase() {
     })),
     // Google から戻ってきたコードをセッションに引き換える。本物と同じく、保存してから SIGNED_IN を知らせる
     exchangeCodeForSession: vi.fn<(code: string) => Promise<unknown>>(async () => {
+      if (exchangeError) return { data: { session: null, user: null }, error: exchangeError }
       session = testSession()
       notify('SIGNED_IN')
       return { data: { session, user: session.user }, error: null }
+    }),
+    // 端末のセッションを消して SIGNED_OUT を知らせる（scope: 'local' はこの端末だけ）
+    signOut: vi.fn<(options?: { scope?: string }) => Promise<unknown>>(async () => {
+      session = null
+      notify('SIGNED_OUT')
+      return { error: null }
     }),
   }
 
@@ -37,11 +46,19 @@ function createFakeSupabase() {
     setStoredSession(next: Session | null) {
       session = next
     },
+    storedSession() {
+      return session
+    },
+    failExchange(error: Error | null) {
+      exchangeError = error
+    },
     reset() {
       session = null
+      exchangeError = null
       listeners.clear()
       auth.signInWithOAuth.mockClear()
       auth.exchangeCodeForSession.mockClear()
+      auth.signOut.mockClear()
     },
   }
 }
