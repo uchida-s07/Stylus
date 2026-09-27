@@ -192,12 +192,20 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - Red: プラグインを入れる前に `pnpm exec vitest run apps/web/src/pwa/build-output.test.ts` を実行して2件失敗。AC-1「expected undefined to be defined」（ビルド結果にマニフェストが無い）、AC-2「expected [ 'assets/index-B1k8zaqb.css', …(2) ] to include 'sw.js'」（Service Worker が無い）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
-- [ ] T-21: フロントの予期しないエラーを Sentry へ送る
+- [x] T-21: フロントの予期しないエラーを Sentry へ送る
   - 対応: COMMON-N-011（フロント側。AC は API 側だけ）
-  - 対象ファイル: `apps/web/src/sentry.ts`、`apps/web/src/main.tsx`
+  - 対象ファイル: `apps/web/src/sentry/`（`index.ts`・`options.ts`・`environment.ts`。計画の `sentry.ts` を分けた）、`apps/web/src/main.tsx`、`apps/web/src/components/RouteError.tsx`、`apps/web/src/router.tsx`、`apps/web/vite.config.ts`、`apps/web/src/vite-env.d.ts`、テスト `apps/web/src/sentry/options.test.ts`・`apps/web/src/app/route-error.test.tsx`
   - 内容: DSN は Pages の環境変数から渡す。本番・開発を environment で分ける。送る内容にアクセストークンを含めない
   - Red: 対象外（AC が無い。開発環境でわざとエラーを起こして届くことを T-24 で手で確かめる）
   - 完了条件: テスト全体と lint が通る
+  - 結果: 完了条件を満たした（@sentry/react 11.0.0、API と同じ版）。オーナーの判断で次の2つを決めた。
+    - environment はブランチ名で自動：Pages がビルドのときに渡す `CF_PAGES_BRANCH` が `main` なら `production`、それ以外（develop・spec/*・手元）は `development`。`vite.config.ts` の `define` で `import.meta.env.SENTRY_ENVIRONMENT` に入れる。Pages の設定を足す手作業は要らない。ダミーの DSN を渡したビルドで、main は production、develop は development になることを確かめた
+    - 画面の描画中の予期しないエラー（React Router が捕まえる）は、すべての画面を1つの親でくるんだ `RouteError` で受け、Sentry へ送って「うまく読み込めませんでした。…」（`ErrorScreen`）を出す。React Router の既定の英語の画面は出さない
+    - DSN（Pages の `VITE_SENTRY_DSN`）が無ければ初期化しない（手元の `.env.local` は空のため、手元のビルドには Sentry の初期化が入らない）。捕まえていない例外と Promise の失敗は SDK が window で拾い、ルーターより外側の描画中のエラーは `createRoot` の `onUncaughtError` で送る
+    - 送る内容：`dataCollection` で利用者の情報・クッキー・ヘッダー・本文・URL のクエリを集めない。`beforeSend`・`beforeBreadcrumb` で `Authorization`・`Cookie`・クッキーと、URL の `code`・`access_token`・`refresh_token` など（? と # の両方）を消す。`enhanceFetchErrorMessages: 'report-only'` にして、通信エラーの文言そのものは書き換えさせない
+    - 無い URL を開いたときは Sentry へ送らず、ホームへ送る（ログインしていなければログイン画面へ）。開発サーバーで `/no-such-page` を開いてログイン画面になることを確かめた
+    - テスト（タグなし）：environment の決め方、URL・ヘッダーの消し方、本物の SDK を通して送る直前の中身（Google から戻った URL のコードや記録に残ったトークンが入らない）、描画中のエラーの表示と送信、無い URL。送る前に消す処理を一時的に外すと、SDK を通すテストが「expected '{"event_id":…' not to contain 'secret-code'」で失敗することを確かめた
+    - DSN を入れた本番用のバンドルは約 734 KiB（gzip 219 KiB）。入れないときより gzip で約 27 KiB 増える
 
 ## 6. CI・デプロイ
 

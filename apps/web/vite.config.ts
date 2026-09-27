@@ -1,8 +1,15 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { sentryEnvironment } from './src/sentry/environment'
 
 export default defineConfig({
+  define: {
+    // Sentry の environment（本番・開発）。Pages がビルドのときに渡すブランチ名から決める
+    'import.meta.env.SENTRY_ENVIRONMENT': JSON.stringify(
+      sentryEnvironment(process.env.CF_PAGES_BRANCH),
+    ),
+  },
   plugins: [
     react(),
     // 端末のホーム画面に追加して、アプリとして開ける（APP-F-001）
