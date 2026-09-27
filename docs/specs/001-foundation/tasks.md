@@ -75,11 +75,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 ## 2. 共有のルール
 
-- [ ] T-6: 日本時間の日付を求める共通のルール
+- [x] T-6: 日本時間の日付を求める共通のルール
   - 対応: COMMON-N-009 / AC-1, AC-2
   - 対象ファイル: `packages/shared/src/date.ts`、`packages/shared/src/date.test.ts`
-  - Red: 未記録（想定：素朴な形（UTC の日付を返す）で AC-1 が 2026-10-01 を返して失敗）
+  - Red: 素朴な形（`toISOString()` の UTC の日付を返す）を置いて `pnpm exec vitest run packages/shared/src/date.test.ts` で AC-1 が失敗。「expected '2026-10-01' to be '2026-10-02'」。AC-2 は UTC でも 10月1日のため素朴な形でも通った
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした。`toJstDate(instant: Date): string`（`YYYY-MM-DD`）を `@stylus/shared` から export した。日本時間は夏時間が無いので、Intl を使わず UTC に 9 時間足して求める（Workers の CPU 時間を節約）。AC のほかに、年・月をまたぐ境界をタグなしのテストで確かめた
 
 ## 3. API
 
