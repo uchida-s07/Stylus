@@ -7,3 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [env.dev]
 name = "stylus-api-dev"
+
+[[env.dev.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "d8d17c5944554666b7f8da0ec446cc06"

@@ -197,6 +197,7 @@ handoff 5章の検証項目（V-4 は作れない日の spec へ移した）。�
 | # | 結果 | 日付 |
 |---|---|---|
 | V-1 | **合格。代替は不要で、spec は直さない。** 開発（`stylus-dev`）で確かめた：(a) Email のログイン方法を無効にしたままでも、管理画面（Add user → Create new user、Auto Confirm User）でメールアドレスの利用者を作れた。(b) サインアップ無効のまま、その利用者が Supabase の authorize URL から Google でログインできた。(c) 利用者は増えず（`auth.users` は1行のまま、`id` も同じ）、`auth.identities` に `google` が1件加わった。`raw_app_meta_data` はログイン前 `{"provider":"email","providers":["email"]}`、ログイン後 `{"provider":"email","providers":["email","google"]}`（`provider` は `email` のまま。見込みどおりで、`sub` で照合する方式のまま動く） | 2026-09-27 |
+| V-3 | **合格。代替（Supavisor のトランザクションモードを Workers から直接）は不要。** Hyperdrive の設定 `stylus-dev`（ID `d8d17c5944554666b7f8da0ec446cc06`、キャッシュ無効）を作り、`stylus-api-dev`（Workers Free、`nodejs_compat`、postgres.js）に一時的な確認用の経路を置いて `select 1` を3回投げ、すべて成功した（20〜70ms）。`now()` が毎回変わり、キャッシュが効いていないことも確かめた。確認用の経路は消して配置し直した。Hyperdrive の接続先は Supavisor のセッションモード（`aws-0-ap-northeast-1.pooler.supabase.com:5432`）。Cloudflare の手順は Supabase の直接接続を勧めているが、直接接続は IPv6 だけのため、IPv4 で使えるセッションモードで作った | 2026-09-27 |
 | V-5 | **合格。** Pages のプロジェクト `stylus-family` を GitHub（`uchida-s07/Stylus`、本番ブランチ `main`、全ブランチでプレビュー）とつなぎ、URL は `https://stylus-family.pages.dev` になった。CORS・Supabase Auth の値は変えなくてよい | 2026-09-27 |
 
 T-2 で決めたこと（2026-09-27 オーナー決定）：
@@ -209,7 +210,7 @@ T-2 で決めたこと（2026-09-27 オーナー決定）：
 
 そのほかの懸念：
 
-- Hyperdrive はクエリの結果をキャッシュする。Cron の問い合わせがキャッシュで返ると DB に届かないので、Cron ではキャッシュを使わない接続にするか、キャッシュされない問い合わせにする
+- Hyperdrive はクエリの結果をキャッシュする（既定で有効）。Cron の問い合わせがキャッシュで返ると DB に届かず、書き込んだ直後の読み取りで古い結果が返ることもあるので、Hyperdrive の設定でキャッシュを無効にする（2026-09-27 オーナー決定。家族4人の規模ではキャッシュの効果が小さい）
 - Supabase の既定のままでは、ログイン状態に期限が無い。AUTH-F-003 の「7日」は下限の約束で、実際はもっと長く続く
 - ブランチ保護が無いので、CI が失敗した PR をマージしないのは運用で守る
 - Supabase の直接接続は IPv6 だけで、GitHub Actions の実行環境からはつながらないことがある。マイグレーションは Supavisor のセッションモード（IPv4 で使える）の接続文字列で流す
