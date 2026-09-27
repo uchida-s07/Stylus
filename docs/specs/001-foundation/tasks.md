@@ -185,10 +185,11 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - Red: 中身の無い `signOutLocally()`（何もしない）と「ログアウト」ボタン・確認のダイアログを置いて `pnpm exec vitest run apps/web/src/pages/logout.test.tsx` を実行し、AC-1・AC-3（2件）・AC-4 の4件が「Unable to find role="main" and name "ログイン"」で失敗（確認で「ログアウト」を選んでもホームのまま）。AC-2 は中身の無い形でも通った。あわせて、ありがちな誤りをテストが捕まえるかを確かめた。`signOut()`（scope なし＝global）にすると AC-4 が「expected false to be true」（端末 B のログイン状態が取り消された）と AC-3 の期限切れの方で失敗。`signOut({ scope: 'local' })` だけ（自分では消さない）にすると AC-3 の期限切れの方が「Unable to find role="main" and name "ログイン"」で失敗
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
-- [ ] T-20: PWA のマニフェストと Service Worker
+- [x] T-20: PWA のマニフェストと Service Worker
   - 対応: APP-F-001 / AC-1, AC-2
-  - 対象ファイル: `apps/web/vite.config.ts`（vite-plugin-pwa。使っている最中には切り替えず次に開いたときに新しい版を使う設定）、`apps/web/public/icons/icon-192.png`・`icon-512.png`、`apps/web/src/pwa/build-output.test.ts`（本番用ビルドを一時ディレクトリに出して調べる）
-  - Red: 未記録（想定：プラグインが無く、ビルド結果にマニフェストと Service Worker が無い）
+  - 対象ファイル: `apps/web/vite.config.ts`（vite-plugin-pwa。使っている最中には切り替えず次に開いたときに新しい版を使う設定）、`apps/web/public/icons/icon-192.png`・`icon-512.png`、`apps/web/src/pwa/build-output.test.ts`（本番用ビルドを一時ディレクトリに出して調べる）、`apps/web/index.html`、`apps/web/test/setup.ts`（Node で動かすテストでは画面の準備をしない）
+  - 実装メモ: vite-plugin-pwa 1.3.0（Vite 8 に対応。ビルドのときだけ使うので devDependencies、Workers では動かない）。`registerType: 'prompt'` のまま切り替えを促す画面を作らず、開いている画面がすべて閉じてから新しい版に切り替わる。保存の対象は既定（HTML・JS・CSS とマニフェスト・アイコン）。アイコンはオーナーの判断（A案）で仮のもの（Mantine の blue.6 `#228be6` の地に白の「S」。192px・512px、512px は maskable にも使う）を作った。差し替えは `public/icons/` の2ファイルを置き換えるだけ。`index.html` に theme-color と apple-touch-icon を足した。テストの中は NODE_ENV=test で Workbox が本番と違う形の Service Worker を出すので、ビルドの間だけ production にしている。本番用ビルドを `vite preview` で開き、Service Worker が有効になって7ファイル（registerSW.js・index.html・JS・CSS・アイコン2つ・マニフェスト）を保存すること、サーバーを止めてから再読み込みしても保存済みの画面（ログイン画面）が出ることを、内蔵ブラウザで確かめた
+  - Red: プラグインを入れる前に `pnpm exec vitest run apps/web/src/pwa/build-output.test.ts` を実行して2件失敗。AC-1「expected undefined to be defined」（ビルド結果にマニフェストが無い）、AC-2「expected [ 'assets/index-B1k8zaqb.css', …(2) ] to include 'sw.js'」（Service Worker が無い）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
 - [ ] T-21: フロントの予期しないエラーを Sentry へ送る
