@@ -66,11 +66,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
   - 結果: 完了条件を満たした。マイグレーション `0001_members_constraints.sql` で、`email`・`display_name` の NOT NULL、`email`・`auth_user_id` の一意、`email` の空禁止と小文字だけ、`display_name` の空白だけ禁止を足した。空白の判定は、ロケール次第で全角空白が `[[:space:]]` に入らないため、`btrim` で除く文字（半角空白・タブ・改行・全角空白 U+3000）を明示した。テストは拒否の理由まで確かめるため SQLSTATE（23502 / 23505 / 23514）を見る。NULL の登録は型で書けないので、管理者が SQL を手で書く場合を想定して生の SQL で入れる。`auth_user_id` の一意（design.md の制約、AC なし）もタグなしのテストで確かめた
 
-- [ ] T-5: public スキーマの全テーブルで RLS を有効にし、ポリシーを作らない
+- [x] T-5: public スキーマの全テーブルで RLS を有効にし、ポリシーを作らない
   - 対応: COMMON-N-003 / AC-1
   - 対象ファイル: `apps/api/drizzle/*.sql`（RLS を有効にするマイグレーション）、`apps/api/src/db/rls.test.ts`
-  - Red: 未記録（想定：`pg_class.relrowsecurity` が `members` で false）
+  - Red: `pnpm exec vitest run apps/api/src/db/rls.test.ts` で失敗。「expected [ 'members' ] to deeply equal []」（RLS が無効のテーブルとして `members` が挙がった。`pg_class.relrowsecurity` が false）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした。`schema.ts` の `members` に Drizzle の `.enableRLS()` を付け、drizzle-kit でマイグレーション `0002_members_rls.sql`（`ENABLE ROW LEVEL SECURITY`）を作った。今後のテーブルも schema 側で `.enableRLS()` を付ける（付け忘れはこのテストが止める）。テストは、調べる対象が空で素通りしないように `members` が含まれることも確かめる。`FORCE ROW LEVEL SECURITY` は付けない（API はテーブルの持ち主のロールでつなぐので RLS を受けず、ポリシーなしでも読み書きできる）
 
 ## 2. 共有のルール
 

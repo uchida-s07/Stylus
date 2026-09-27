@@ -6,6 +6,7 @@ import { boolean, check, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-c
 const BLANK_CHARS = sql.raw(`E' \\t\\r\\n\\u3000'`)
 
 // 家族（design.md「データモデル」）
+// public のテーブルはすべて RLS を有効にし、ポリシーは作らない（COMMON-N-003。Data API から読み書きさせない）
 export const members = pgTable(
   'members',
   {
@@ -25,4 +26,4 @@ export const members = pgTable(
     check('members_email_lowercase', sql`${t.email} = lower(${t.email})`),
     check('members_display_name_not_blank', sql`btrim(${t.displayName}, ${BLANK_CHARS}) <> ''`),
   ],
-)
+).enableRLS()
