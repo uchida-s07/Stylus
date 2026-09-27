@@ -1,16 +1,15 @@
 import '@mantine/core/styles.css'
 
-import { MantineProvider, Text } from '@mantine/core'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createBrowserRouter, RouterProvider } from 'react-router'
+import { createBrowserRouter } from 'react-router'
+import { AppRoot } from './app/AppRoot'
+import { routes } from './router'
 
-const router = createBrowserRouter([{ path: '/', element: <Text p="md">Stylus</Text> }])
+const router = createBrowserRouter(routes)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <MantineProvider>
-      <RouterProvider router={router} />
-    </MantineProvider>
+    <AppRoot router={router} />
   </StrictMode>,
 )

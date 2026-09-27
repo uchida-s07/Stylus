@@ -6,6 +6,8 @@ export default mergeConfig(
   defineProject({
     test: {
       name: 'web',
+      environment: 'jsdom',
+      setupFiles: ['./test/setup.ts'],
     },
   }),
 )

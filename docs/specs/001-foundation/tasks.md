@@ -141,11 +141,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 ## 5. フロント
 
-- [ ] T-14: ログイン状態によって画面を振り分ける
+- [x] T-14: ログイン状態によって画面を振り分ける
   - 対応: AUTH-F-002 / AC-4, AC-5
   - 対象ファイル: `apps/web/src/main.tsx`、`apps/web/src/router.tsx`（`/login`、`/`、`/auth/callback`）、`apps/web/src/auth/supabase.ts`、`apps/web/src/auth/session.tsx`、`apps/web/src/pages/LoginPage.tsx`、`apps/web/src/pages/HomePage.tsx`、`apps/web/src/router.test.tsx`、`apps/web/test/setup.ts`（supabase-js の差し替え）
-  - Red: 未記録（想定：振り分けが無く、未ログインで `/` にホーム、ログイン済みで `/login` にログイン画面が出る）
+  - Red: 振り分けの無いルート（3つの画面を並べただけ）で `pnpm exec vitest run apps/web/src/router.test.tsx` を実行して失敗。AC-4「Unable to find role="main" and name "ログイン"」（未ログインで `/` にホームが出た）、AC-5「Unable to find role="main" and name "ホーム"」（ログイン済みで `/login` にログイン画面が出た）。振り分けが無くても正しい組み合わせ（未ログインで `/login`、ログイン済みで `/`）のタグなしのテストは通り、テストの環境が動いていることを確かめた
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした（@supabase/supabase-js 2.117.2。テストに @testing-library/react・jest-dom・user-event と jsdom）。`RequireSignedIn`・`RedirectIfSignedIn`（`src/auth/guards.tsx`）でルートを包み、端末のセッションを読み終えるまでは読み込み中を出す（ログイン画面が一瞬出ないことをタグなしのテストで確かめた）。ログイン状態は supabase-js の `onAuthStateChange` の最初の通知（`INITIAL_SESSION`）から取る（`SessionProvider`）。画面全体の組み立ては `src/app/AppRoot.tsx` にまとめ、`main.tsx` とテスト（`test/render.tsx`、メモリ上のルーター）で同じものを使う。supabase-js は `test/setup.ts` で `test/fakeSupabase.ts` の偽物に差し替える。Mantine が使う `matchMedia`・`ResizeObserver` は setup で補った。画面はそれぞれ `<main>` に名前（「ログイン」「ホーム」）を付けて見分ける。ログイン画面の「Google でログイン」ボタンは置いただけで、押したときの動きは T-15。`/auth/callback` は読み込み中を出すだけの形（中身は T-15）。環境変数の型は `src/vite-env.d.ts`。本番用ビルドも通った（JS 585 kB・gzip 170 kB で 500 kB 超えの注意が出るが、大半が Mantine と supabase-js で、T-20 で端末に保存するので分割はしない）
 
 - [ ] T-15: Google でログインしてホームに表示名を出す
   - 対応: AUTH-F-002 / AC-1
