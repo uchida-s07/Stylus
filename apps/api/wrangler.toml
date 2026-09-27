@@ -1,12 +1,21 @@
 # 本番：stylus-api（wrangler deploy）
 # 開発：stylus-api-dev（wrangler deploy --env dev）。ローカルの wrangler dev も開発用の設定で動かす
+# vars は環境ごとに引き継がれないので、[env.dev.vars] にもすべて書く
 name = "stylus-api"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
 
+[vars]
+# CORS で許可するオリジン（COMMON-N-005）。本番のフロントだけ
+CORS_ALLOWED_ORIGINS = ["https://stylus-family.pages.dev"]
+
 [env.dev]
 name = "stylus-api-dev"
+
+[env.dev.vars]
+# Pages のプレビュー（* はサブドメイン1階層）とローカルの Vite
+CORS_ALLOWED_ORIGINS = ["https://*.stylus-family.pages.dev", "http://localhost:5173"]
 
 [[env.dev.hyperdrive]]
 binding = "HYPERDRIVE"

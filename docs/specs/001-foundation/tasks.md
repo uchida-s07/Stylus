@@ -84,11 +84,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 ## 3. API
 
-- [ ] T-7: CORS（本番用・開発用の設定）
+- [x] T-7: CORS（本番用・開発用の設定）
   - 対応: COMMON-N-005 / AC-1, AC-2, AC-3, AC-4, AC-5
   - 対象ファイル: `apps/api/src/app.ts`（アプリの組み立て。設定を受け取って作る形）、`apps/api/src/middleware/cors.ts`、`apps/api/src/middleware/cors.test.ts`、`apps/api/wrangler.toml`（許可するオリジンの設定を本番・`[env.dev]` に）
-  - Red: 未記録（想定：CORS が無く、AC-1・AC-3 で `Access-Control-Allow-Origin` が返らない）
+  - Red: 何もしない形の `corsMiddleware` を置いて `pnpm exec vitest run apps/api/src/middleware/cors.test.ts` で 4件失敗（AC-1 と AC-3 の3オリジン）。どれも「expected null to be '<オリジン>'」で、`Access-Control-Allow-Origin` が返らない。許可しない側（AC-2・AC-4・AC-5）は何もしない形でも通った
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした。許可するオリジンは `wrangler.toml` の vars `CORS_ALLOWED_ORIGINS`（配列）に本番用と `[env.dev.vars]` 用を分けて書いた。書き方は完全一致で、`*` はサブドメイン1階層（英小文字・数字・ハイフン）だけに当たる。判定は Hono の `cors` に関数で渡し、許可しないオリジンには `Access-Control-Allow-Origin` を付けない。`createApp(config)` で組み立て、`index.ts` は最初の要求で env から設定を作ってアプリを使い回す。テストは wrangler の `unstable_readConfig` で実際の `wrangler.toml`（本番・`dev`）を読み、そこからアプリを組み立てる（設定の書き間違いもテストで止まる。名前に unstable が付く API なので、wrangler を上げて壊れたら TOML を直接読む形に替える）。ほかに、許可するヘッダーを `Authorization`・`Content-Type`、メソッドを GET・POST・PUT・PATCH・DELETE、事前確認の結果をブラウザに 600 秒覚えさせる設定にした（`Authorization` の許可と、事前確認でない要求にも付くことはタグなしのテストで確かめた）。ローカルの `wrangler dev --env dev` でも、localhost とプレビューは許可、`https://example.com` は許可しないことを確かめた
 
 - [ ] T-8: アクセストークンの検証・家族の照合と `GET /me`
   - 対応: COMMON-N-001 / AC-1, AC-2, AC-3, AC-4, AC-5、AUTH-F-001 / AC-1
