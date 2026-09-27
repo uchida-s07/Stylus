@@ -131,12 +131,13 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
   - 結果: 完了条件を満たした。新しいプラグインは入れず、ESLint のルール `packages/repo-checks/eslint/no-api-runtime-import.js` を自作して `eslint.config.js` で `apps/web/**/*.{ts,tsx}` に付けた（`stylus/no-api-runtime-import`）。相対パスは文字列ではなく解決した先が `apps/api` の中かで判定する（T-15 で作る `apps/web/src/api/` を誤って止めないため）。パッケージ名 `api`（`apps/api/package.json` の name）とその下も止める。許すのは `import type { … }`・`export type { … }`・`typeof import(…)` だけで、`import { type X }` は止める（`verbatimModuleSyntax` では JS に読み込みが残るため）。読み込みだけの import・再 export・動的 import も止める。テストはリポジトリの `eslint.config.js` を ESLint の API で読み、`apps/web` の中のファイルとしてコードを検査する（`packages/repo-checks/fixtures/*` は使わなかった）。あわせて、一時ファイルを `apps/web/src` に置いて `pnpm lint` そのものでも、実行コードの import の行だけがエラーになることを確かめ、一時ファイルは消した。`packages/repo-checks` に `eslint` と `@types/node` を足した
 
-- [ ] T-13: 追跡ファイルに秘密情報の形が無いことを検査する
+- [x] T-13: 追跡ファイルに秘密情報の形が無いことを検査する
   - 対応: COMMON-N-004 / AC-1
   - 対象ファイル: `packages/repo-checks/src/secret-patterns.ts`（検査する形の定義。検査から除く唯一のファイル）、`packages/repo-checks/src/secrets.test.ts`
   - 内容: CI のビルド成果物の検査（T-22）も同じ定義ファイルから形を読む。`ci.yml` に形をじかに書かない（review-notes の指摘「ci.yml 自身が検査に引っかかる」への対応）
-  - Red: 未記録（想定：形を含む一時ファイルを `git add` した状態で実行し、そのファイルが見つかって失敗する。確かめたら一時ファイルは消す）
+  - Red: 何もしない形の `findSecretPatterns()`（何も返さない）では、形の見つけ方のテスト（タグなし）が「expected [] to deeply equal [ 'sb_secret_' ]」などで失敗。見つける処理を入れた後、形（`postgresql://` の接続文字列）を含む一時ファイル `tmp-secret-check.txt` を `git add` した状態で `pnpm exec vitest run packages/repo-checks/src/secrets.test.ts` を実行し、AC-1 が「expected [ Array(1) ] to deeply equal []」（`tmp-secret-check.txt: postgresql://` が見つかった）で失敗することを確かめた。一時ファイルは索引からも作業ツリーからも消した
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした。形は `packages/repo-checks/src/secret-patterns.ts` の `SECRET_PATTERNS` だけに書き、検査は `findSecretPatterns()`（大文字・小文字を区別しない）で行う（T-22 も同じものを使う）。テストは `git ls-files` の追跡ファイルから `docs/` と定義ファイル自身を除き、1 バイト 1 文字で読んで探す（バイナリも調べられる）。調べる対象が空で素通りしないように `package.json` が含まれることも確かめる。途中で、テストファイル自身に形を大文字でじかに書いていて、追跡すると AC-1 に引っかかることに気づき、定義から組み立てる形に直した（ファイルを `git add` した状態で通ることを確かめた）。今後のテストでも、形は定義から組み立てて書く
 
 ## 5. フロント
 
