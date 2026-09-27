@@ -163,7 +163,7 @@ packages/
   - CPU 時間（COMMON-N-007）、画面幅と押せる大きさ（COMMON-N-008）
   - PR ごとに GitHub Actions が走り、結果が PR に出ること（最初の PR で）
   - 端末のホーム画面のアイコンから開いた状態（standalone）で、ログアウト → Google で再ログインして、アプリのホームに戻れること
-- CI で確かめるもの：フロントのビルド成果物に秘密情報の形が無いこと（COMMON-N-004 の測り方）
+- CI で確かめるもの：フロントのビルド成果物に秘密情報の値の形が無いこと（COMMON-N-004 の測り方）。形の定義は `packages/repo-checks/src/secret-patterns.ts` にだけ置き、成果物は `scan-build.ts` で調べる
 - 例のファイル（`.env.example` など、git で追跡するもの）にはキー名だけを書き、値は空にする。仮の値でも接続文字列の形（`postgres://` など）を書くと COMMON-N-004/AC-1 の検査に引っかかるため
 
 ## 検討した代替案

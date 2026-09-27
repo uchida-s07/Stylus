@@ -189,7 +189,7 @@ review: 2026-09-27 合格（5回目。R-4〈4回目〉と R-1〜R-5〈5回目〉
   - DB の接続情報：Workers の secret（Hyperdrive を使うならその設定）。例外として、マイグレーション用は GitHub Actions の secret にも置く
   - Cloudflare の API トークン（デプロイ用）：GitHub Actions の secret
   - Google OAuth のクライアントシークレット：Supabase の管理画面（Auth の設定）
-- **測り方**: 自動テストでリポジトリの追跡ファイルを検査する。あわせて CI で、フロントのビルド成果物に同じ形が無いことを検査する
+- **測り方**: 自動テストでリポジトリの追跡ファイルを検査する。あわせて CI で、フロントのビルド成果物に秘密情報の値の形（`sb_secret_` の後ろにキーの文字が続くもの、`postgres://`・`postgresql://` の後ろにユーザーとパスワードが続く接続文字列）が無いことを検査する。成果物では値の形で探すのは、ライブラリ（supabase-js）がキーの種類の見分けに `sb_secret_` の文字列そのものを持つため
 - **受入基準**:
   - AC-1: Given git で追跡しているファイル（`docs/` と、検査する形を定義したファイル自身を除く） / When 秘密情報の形（`sb_secret_`、`postgres://`、`postgresql://`）を探す / Then 1件も見つからない
 - **対応する要求**: G-1
