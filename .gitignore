@@ -1,0 +1,38 @@
+# 依存パッケージ
+node_modules/
+
+# ビルド成果物
+dist/
+build/
+*.tsbuildinfo
+coverage/
+
+# Cloudflare（wrangler）
+.wrangler/
+.dev.vars
+.dev.vars.*
+
+# 環境変数・シークレット
+.env
+.env.*
+!.env.example
+
+# Supabase CLI
+supabase/.temp/
+supabase/.branches/
+
+# ログ
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# エディタ・OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code の個人設定
+.claude/settings.local.json

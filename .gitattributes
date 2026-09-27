@@ -1,0 +1,17 @@
+# 改行コードは LF に揃える（CI は Linux）
+* text=auto eol=lf
+
+# Windows 専用のスクリプトだけは CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# バイナリ
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
