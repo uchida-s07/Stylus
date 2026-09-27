@@ -1,0 +1,9 @@
+# 本番：stylus-api（wrangler deploy）
+# 開発：stylus-api-dev（wrangler deploy --env dev）。ローカルの wrangler dev も開発用の設定で動かす
+name = "stylus-api"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[env.dev]
+name = "stylus-api-dev"

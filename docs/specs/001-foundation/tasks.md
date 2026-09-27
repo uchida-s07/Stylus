@@ -18,7 +18,7 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 ## 0. 土台と検証
 
-- [ ] T-1: モノレポの雛形を作る
+- [x] T-1: モノレポの雛形を作る
   - 対応: COMMON-N-010（土台）、design.md「リポジトリ構成」
   - 対象ファイル: `package.json`、`pnpm-workspace.yaml`、`tsconfig.base.json`、`eslint.config.js`、`.prettierrc`、`vitest.workspace.ts`（または各パッケージの `vitest.config.ts`）、`apps/web/*`（Vite + React + TypeScript、Mantine、React Router の最小構成）、`apps/api/*`（Hono、`wrangler.toml` に本番と `[env.dev]`）、`packages/shared/*`（`@stylus/shared`）、`packages/repo-checks/*`、`.gitignore`、`apps/api/.dev.vars.example`、`apps/web/.env.example`
   - 内容:
@@ -29,6 +29,7 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
     - ローカルの `wrangler dev` から DB へつなぐ接続文字列の渡し方（Hyperdrive のローカル用接続文字列を環境変数で渡す方式）を決め、`.dev.vars.example` と README 相当の場所にキー名だけ書く（review-notes の指摘「ローカルの Hyperdrive の接続文字列の渡し方」への対応）
   - Red: 対象外（雛形のみで振る舞いが無い）
   - 完了条件: `pnpm install`・`pnpm lint`・`pnpm test` が Windows で通る。`pnpm --filter web dev` と `pnpm --filter api dev` が起動する
+  - 結果: 完了条件をすべて満たした（pnpm 12.6.0）。ローカルの Hyperdrive の接続文字列は、wrangler が読む `apps/api/.env` に `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE`（バインディング名 `HYPERDRIVE`）で置く。`.dev.vars` は Worker が読む値なので使わない。`wrangler dev --env dev` でも `.env` が読まれることを確かめた。キー名は `apps/api/.env.example` と `README.md` に書いた
 
 - [ ] T-2: 外部サービスを準備し、V-1・V-2・V-3・V-5 を確かめる（管理者の手作業）
   - 対応: design.md「移行計画」1〜4、「リスクと懸念」V-1〜V-5
