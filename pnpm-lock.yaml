@@ -265,7 +265,14 @@ importers:
         specifier: ^8.3.1
         version: 8.3.1(esbuild@0.28.1)
 
-  packages/repo-checks: {}
+  packages/repo-checks:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.0
+        version: 24.19.0
+      eslint:
+        specifier: ^10.11.0
+        version: 10.11.0(supports-color@10.2.2)
 
   packages/shared:
     dependencies:

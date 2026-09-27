@@ -124,11 +124,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 ## 4. リポジトリ全体の検査
 
-- [ ] T-12: `apps/web` から `apps/api` の実行コードを import したら lint で止める
+- [x] T-12: `apps/web` から `apps/api` の実行コードを import したら lint で止める
   - 対応: COMMON-N-010 / AC-1, AC-2
   - 対象ファイル: `eslint.config.js`（`apps/web` への制限。`import type` は許す）、`packages/repo-checks/src/import-boundary.test.ts`、`packages/repo-checks/fixtures/*`（検査用の例）
-  - Red: 未記録（想定：ルールが無く、実行コードを import する例でエラーが0件）
+  - Red: 何もしない形のルール（報告しない）を `eslint.config.js` につないで `pnpm exec vitest run packages/repo-checks/src/import-boundary.test.ts` で失敗。AC-1 の2件（相対パス・パッケージ名）が「expected [] to have a length of 1 but got +0」（エラーが0件）。AC-2 は何もしない形でも通った（`import type` の例が、ほかのルールも含めてエラー0件であることもここで確かめた）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした。新しいプラグインは入れず、ESLint のルール `packages/repo-checks/eslint/no-api-runtime-import.js` を自作して `eslint.config.js` で `apps/web/**/*.{ts,tsx}` に付けた（`stylus/no-api-runtime-import`）。相対パスは文字列ではなく解決した先が `apps/api` の中かで判定する（T-15 で作る `apps/web/src/api/` を誤って止めないため）。パッケージ名 `api`（`apps/api/package.json` の name）とその下も止める。許すのは `import type { … }`・`export type { … }`・`typeof import(…)` だけで、`import { type X }` は止める（`verbatimModuleSyntax` では JS に読み込みが残るため）。読み込みだけの import・再 export・動的 import も止める。テストはリポジトリの `eslint.config.js` を ESLint の API で読み、`apps/web` の中のファイルとしてコードを検査する（`packages/repo-checks/fixtures/*` は使わなかった）。あわせて、一時ファイルを `apps/web/src` に置いて `pnpm lint` そのものでも、実行コードの import の行だけがエラーになることを確かめ、一時ファイルは消した。`packages/repo-checks` に `eslint` と `@types/node` を足した
 
 - [ ] T-13: 追跡ファイルに秘密情報の形が無いことを検査する
   - 対応: COMMON-N-004 / AC-1
