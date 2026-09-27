@@ -1,7 +1,9 @@
 import { join } from 'node:path'
 import { unstable_readConfig } from 'wrangler'
 import { describe, expect, it } from 'vitest'
-import { configFromEnv, createApp, type AppEnv } from '../app'
+import { createApp } from '../app'
+import type { WorkerBindings } from '../env'
+import { testAppConfig } from '../../test/app'
 
 // wrangler.toml の実際の設定（本番・[env.dev]）からアプリを組み立てる
 function appFor(env: 'production' | 'dev') {
@@ -12,7 +14,8 @@ function appFor(env: 'production' | 'dev') {
     },
     { hideWarnings: true },
   )
-  return createApp(configFromEnv(config.vars as AppEnv))
+  const vars = config.vars as Partial<WorkerBindings>
+  return createApp(testAppConfig({ corsAllowedOrigins: vars.CORS_ALLOWED_ORIGINS ?? [] }))
 }
 
 // CORS の事前確認（preflight）を送り、返ってきた Access-Control-Allow-Origin を返す

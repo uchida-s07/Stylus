@@ -8,8 +8,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@stylus/shared": "workspace:*",
     "drizzle-orm": "^0.45.3",
     "hono": "^4.13.9",
+    "jose": "^6.2.12",
     "postgres": "^3.4.9"
   },
   "devDependencies": {

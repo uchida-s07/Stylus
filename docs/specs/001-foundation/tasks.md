@@ -91,12 +91,13 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
   - 結果: 完了条件を満たした。許可するオリジンは `wrangler.toml` の vars `CORS_ALLOWED_ORIGINS`（配列）に本番用と `[env.dev.vars]` 用を分けて書いた。書き方は完全一致で、`*` はサブドメイン1階層（英小文字・数字・ハイフン）だけに当たる。判定は Hono の `cors` に関数で渡し、許可しないオリジンには `Access-Control-Allow-Origin` を付けない。`createApp(config)` で組み立て、`index.ts` は最初の要求で env から設定を作ってアプリを使い回す。テストは wrangler の `unstable_readConfig` で実際の `wrangler.toml`（本番・`dev`）を読み、そこからアプリを組み立てる（設定の書き間違いもテストで止まる。名前に unstable が付く API なので、wrangler を上げて壊れたら TOML を直接読む形に替える）。ほかに、許可するヘッダーを `Authorization`・`Content-Type`、メソッドを GET・POST・PUT・PATCH・DELETE、事前確認の結果をブラウザに 600 秒覚えさせる設定にした（`Authorization` の許可と、事前確認でない要求にも付くことはタグなしのテストで確かめた）。ローカルの `wrangler dev --env dev` でも、localhost とプレビューは許可、`https://example.com` は許可しないことを確かめた
 
-- [ ] T-8: アクセストークンの検証・家族の照合と `GET /me`
+- [x] T-8: アクセストークンの検証・家族の照合と `GET /me`
   - 対応: COMMON-N-001 / AC-1, AC-2, AC-3, AC-4, AC-5、AUTH-F-001 / AC-1
   - 対象ファイル: `apps/api/src/middleware/auth.ts`（JWKS による検証、`jose`）、`apps/api/src/middleware/member.ts`（`sub` → `auth_user_id` の照合）、`apps/api/src/routes/me.ts`、`packages/shared/src/schemas/me.ts`（Zod）、`apps/api/src/app.ts`（`AppType` を export）、`apps/api/test/jwt.ts`（テスト用の鍵・JWKS の差し替え）、`apps/api/src/routes/me.test.ts`
   - 内容: エラーの形は `{ error: { code, message } }`（401 `unauthenticated`、403 `not_a_member`）。JWKS は Worker のメモリで使い回す
-  - Red: 未記録（想定：`GET /me` が無く 404 になり、401 / 403 / 200 と本人の情報のどれも返らない）
+  - Red: CORS だけを付けたアプリと何も確かめない `createTokenVerifier` を置いて `pnpm exec vitest run apps/api/src/routes/me.test.ts` で 14件すべて失敗。AC の6件（COMMON-N-001/AC-1〜5、AUTH-F-001/AC-1）はどれも「expected 404 to be 401 / 403 / 200」で、`GET /me` が無いため。AUTH-F-001/AC-1 は最初、404 の本文を JSON として読んで SyntaxError で落ちたので、先に状態コードを確かめる形に直して「expected 404 to be 200」を確かめ直した
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした（jose 6.2.12、zod 4.6.5）。ミドルウェアは CORS → トークンの検証 → DB を開く → 家族の照合 → `/me` の順で、トークンが無効な要求では DB を開かない（タグなしのテストで確かめた）。トークンの検証は `jwtVerify` で、署名（JWKS）と期限に加えて、発行元（`<SUPABASE_URL>/auth/v1`）・宛先（`authenticated`）・アルゴリズム（ES256 だけ）・`sub` が UUID の形であることを確かめる（開発の Supabase の JWKS と OpenID の設定で、ES256 と発行元の形を確かめた）。JWKS を取りに行けないなど、トークンのせいでない失敗は 401 にせず投げ直す（T-10 で 500 と Sentry）。DB は要求ごとに postgres.js（`max: 5`、`fetch_types: false`）で開き、応答の後に `waitUntil` で閉じる。テストでは PGlite を渡す。エラーの形の Zod スキーマ（`apiErrorSchema`）も `@stylus/shared` に置いた。`wrangler.toml` の `[env.dev.vars]` に `SUPABASE_URL`（stylus-dev）を入れた。本番の値は T-25 で入れる（T-25 の内容に足した）。`AppType` で `hc<AppType>` から `/me` の応答の型が引けることを確かめた。ローカルの `wrangler dev --env dev` で、トークンなしと、本物の kid を名乗る偽の署名がどちらも 401 になること（本物の JWKS を取りに行って検証した）を確かめた。登録済みの本人のトークンでの確認は T-24 で行う
 
 - [ ] T-9: ロール・立場の判定
   - 対応: COMMON-N-002 / AC-1, AC-2, AC-3, AC-4
@@ -221,7 +222,7 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 - [ ] T-25: 本番に出す（`/spec-close` の後でもよい）
   - 対応: design.md「移行計画」6・7
   - 対象ファイル: なし
-  - 内容: 先に、T-2 で後回しにした本番側の準備をする（Supabase `stylus` を Tokyo で作り、Auth・API キー・Data API を開発と同じに設定する。Site URL・Redirect URLs は `https://stylus-family.pages.dev`。本番用の Google の OAuth クライアントを作り、同意画面を「テスト中」のまま使うか公開するかを決める。Hyperdrive の本番の設定（キャッシュ無効）を作って `wrangler.toml` の本番に入れる。Pages の本番の環境変数 `VITE_SUPABASE_URL`・`VITE_SUPABASE_PUBLISHABLE_KEY`・`VITE_API_URL` と、GitHub の Environment `production` の `DATABASE_URL` を入れる）→ `develop` を `main` にマージ → `stylus` にマイグレーション・`stylus-api` にデプロイ → 本番に家族4人を登録 → 公開キーで本番の Data API を読めない・書けないことを確かめる → 各自のスマホでログインし、ホーム画面に追加する
+  - 内容: 先に、T-2 で後回しにした本番側の準備をする（Supabase `stylus` を Tokyo で作り、Auth・API キー・Data API を開発と同じに設定する。Site URL・Redirect URLs は `https://stylus-family.pages.dev`。本番用の Google の OAuth クライアントを作り、同意画面を「テスト中」のまま使うか公開するかを決める。Hyperdrive の本番の設定（キャッシュ無効）を作って `wrangler.toml` の本番に入れる。本番の Supabase の URL を `wrangler.toml` の本番の vars `SUPABASE_URL` に入れる（T-8 で開発だけ入れた）。Pages の本番の環境変数 `VITE_SUPABASE_URL`・`VITE_SUPABASE_PUBLISHABLE_KEY`・`VITE_API_URL` と、GitHub の Environment `production` の `DATABASE_URL` を入れる）→ `develop` を `main` にマージ → `stylus` にマイグレーション・`stylus-api` にデプロイ → 本番に家族4人を登録 → 公開キーで本番の Data API を読めない・書けないことを確かめる → 各自のスマホでログインし、ホーム画面に追加する
   - Red: 対象外（手作業）
   - 完了条件: 家族4人が本番にログインでき、端末のホーム画面から開ける
 

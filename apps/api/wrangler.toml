@@ -9,6 +9,8 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 # CORS で許可するオリジン（COMMON-N-005）。本番のフロントだけ
 CORS_ALLOWED_ORIGINS = ["https://stylus-family.pages.dev"]
+# Supabase の URL（公開してよい値。トークンの発行元と JWKS の場所）。本番の Supabase を作るとき（T-25）に入れる
+# SUPABASE_URL = ""
 
 [env.dev]
 name = "stylus-api-dev"
@@ -16,6 +18,8 @@ name = "stylus-api-dev"
 [env.dev.vars]
 # Pages のプレビュー（* はサブドメイン1階層）とローカルの Vite
 CORS_ALLOWED_ORIGINS = ["https://*.stylus-family.pages.dev", "http://localhost:5173"]
+# Supabase の URL（stylus-dev）
+SUPABASE_URL = "https://ytckpemdmkvnkyewooqb.supabase.co"
 
 [[env.dev.hyperdrive]]
 binding = "HYPERDRIVE"
