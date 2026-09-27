@@ -114,12 +114,13 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
   - 結果: 完了条件を満たした（@sentry/cloudflare 11.0.0）。Worker の入り口は `createWorker()` で組み立てて `withSentry` で包む（T-11 の scheduled も同じ仕組みで包まれる）。捕まえていない例外は Hono の `onError` で 500 `internal` にして `reportError`（本番は `captureException`）で送る。Hono の `HTTPException` はそのまま返す。送る前の処理 `scrubEvent` で、要求のヘッダーの `Authorization`・`Cookie` とクッキーを消す。SDK 11 は既定で要求の本文や DB の値まで集めるので、`dataCollection` で、利用者情報・クッキー・本文・応答のヘッダー・DB の値を集めない設定にした（要求のヘッダーは `Authorization`・`Cookie` 以外を集める）。テストは送信口（transport）を差し替えて、本物の SDK が送る直前の中身を受け止めて調べる。SDK は client をプロセスに1つだけ持つので、テストでは Worker と送信口を使い回し、例外の文言をテストごとに変える（同じ例外が続くと重複として落とされる）。500 の応答にも CORS のヘッダーが付くこと（フロントが 500 と通信エラーを見分けるため）はタグなしのテストで確かめた。本番・開発は vars `SENTRY_ENVIRONMENT`（`production` / `development`）で分ける。DSN は T-1 の `.dev.vars.example` のとおり Worker の secret `SENTRY_DSN` から読み、無ければ送らない（T-24 の前に開発の Worker に入れる。T-24 の内容に足した）。バンドルは約 923 KiB（gzip 197 KiB）になった。ローカルの `wrangler dev --env dev` で 401 と CORS のヘッダーが変わらず返ることを確かめた
 
-- [ ] T-11: Cron で毎日 Supabase に問い合わせる
+- [x] T-11: Cron で毎日 Supabase に問い合わせる
   - 対応: COMMON-N-006 / AC-1, AC-2
   - 対象ファイル: `apps/api/src/scheduled.ts`、`apps/api/src/index.ts`（`fetch` と `scheduled` の export）、`apps/api/wrangler.toml`（`[triggers] crons`、本番・`[env.dev]`）、`apps/api/src/scheduled.test.ts`
   - 内容: 手段は T-2 の V-2 の結果に従う。Hyperdrive のキャッシュで DB に届かないことが無いようにする（design.md「そのほかの懸念」）
-  - Red: 未記録（想定：何もしない形の処理で、問い合わせが0回。失敗時に Sentry への送信が0回）
+  - Red: 何もしない形の `keepAlive()` を置いて `pnpm exec vitest run apps/api/src/scheduled.test.ts` で失敗。AC-1「expected [] to have a length of 1 but got +0」（問い合わせが0回）、AC-2「expected [] to have a length of 1 but got +0」（Sentry への送信が0回）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした。V-2 の判断のとおり、`keepAlive()` が DB に `select 1` を1回投げて接続を閉じる（失敗しても閉じる）。失敗したら例外をそのまま投げ、`withSentry` が Sentry に送る（再試行はしない）。Worker の `scheduled` は `createWorker()` に足し、DB の開き方は fetch と同じ設定（`openDb`）を使う。Cron は `wrangler.toml` の本番・`[env.dev]` の両方に `0 19 * * *`（UTC。日本時間の毎朝 4:00）。テストは本物の Sentry の SDK で包んだ Worker の `scheduled` を呼び、PGlite に届いた問い合わせの数（`createTestDb` の `onQuery`）と、Sentry へ送る直前の中身を数える。両方の環境に毎日1回の Cron があることはタグなしのテストで確かめた。ローカルの `wrangler dev --env dev --test-scheduled` で `/cdn-cgi/handler/scheduled` を呼び、`select 1` を投げに行くこと（ダミーの接続先なので失敗して例外になる）を確かめた。本物の DB での成功は T-24 で確かめる（T-24 に足した）。なお、この確認の途中で、T-7〜T-10 の確認で起動した `wrangler dev` が止まらずに残っていたことに気づいたので止め、サーバー1つで T-7（CORS）・T-8（トークンなしと偽の署名で 401）の確認をやり直して同じ結果を得た
 
 ## 4. リポジトリ全体の検査
 
@@ -218,6 +219,7 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
     - 公開キーで Data API を呼んで読めない・書けない（開発。本番は T-25）
     - CPU 時間が 10ms 以内（COMMON-N-007）、幅 360px・1280px と押せる大きさ 44px（COMMON-N-008）
     - 開発で API・フロントのエラーが Sentry に届く
+    - 開発の Cron が毎日成功している（Workers のダッシュボードの Cron の履歴。T-11 で足した）
   - Red: 対象外（手動確認）
   - 完了条件: すべての項目の結果が書かれ、問題が無い（あれば直すタスクを足す）
 

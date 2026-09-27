@@ -8,10 +8,21 @@ const migrationsFolder = join(import.meta.dirname, '..', 'drizzle')
 
 // テスト用の DB：メモリ上の PGlite に、本番と同じ Drizzle のマイグレーションを当てる
 // テストごとに作り、終わったら close する（テストどうしでデータを共有しない）
-export async function createTestDb() {
+// onQuery を渡すと、マイグレーションの後に送られた問い合わせを受け取れる
+export async function createTestDb(options: { onQuery?: (query: string) => void } = {}) {
   const client = new PGlite()
-  const db = drizzle({ client, schema })
+  let migrated = false
+  const db = drizzle({
+    client,
+    schema,
+    logger: {
+      logQuery: (query) => {
+        if (migrated) options.onQuery?.(query)
+      },
+    },
+  })
   await migrate(db, { migrationsFolder })
+  migrated = true
   return { db, client, close: () => client.close() }
 }
 
