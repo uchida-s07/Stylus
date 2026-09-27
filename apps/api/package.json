@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@sentry/cloudflare": "^11.0.0",
     "@stylus/shared": "workspace:*",
     "drizzle-orm": "^0.45.3",
     "hono": "^4.13.9",

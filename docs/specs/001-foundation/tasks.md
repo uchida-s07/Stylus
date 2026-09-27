@@ -106,12 +106,13 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る。本番のアプリに判定確認用のルートが含まれていない
   - 結果: 完了条件を満たした。`requireAdmin()` と `requireAttribute('parent' | 'cook')` は家族の照合の後ろで `c.var.member` を見て、足りなければ 403 `forbidden` を返す。判定を付けたルートはテストの中で `createTestApp()` のアプリ（本番と同じ組み立て）に足した。`createApp()` のルートに判定確認用のパスが無く `/me` があることをタグなしのテストで確かめた。立場「親」（父・母は 200、せいご・息子は 403）もタグなしのテストで確かめた
 
-- [ ] T-10: 予期しないエラーを 500 にして Sentry へ送る（API）
+- [x] T-10: 予期しないエラーを 500 にして Sentry へ送る（API）
   - 対応: COMMON-N-011 / AC-1, AC-2
   - 対象ファイル: `apps/api/src/middleware/error.ts`、`apps/api/src/sentry.ts`（送信の差し替え口、送る内容から `Authorization` を消す処理）、`apps/api/src/middleware/error.test.ts`
   - 内容: 本番・開発を environment で分ける。エラーの形は 500 `internal`
-  - Red: 未記録（想定：例外で 500 は返るが Sentry への送信が0回。送る内容に `Authorization` の値が残っている）
+  - Red: `pnpm exec vitest run apps/api/src/middleware/error.test.ts` で確かめた。AC-1：`onError` の無い形で「expected [] to have a length of 1 but got +0」（Hono の既定の 500 は返るが、Sentry への送信が0回）。AC-2：送る前の処理（`beforeSend`）を何もしない形（受け取った内容をそのまま返す）にして、トークン入りの内容を渡すと「expected '{"request":…' not to contain 'eyJhbGciOiJFUzI1NiIs…'」（トークンが残る）。AC-2 のもう1つのテスト（本物の SDK を通して実際に送る内容を見る）は、何もしない形でも通った。SDK 11 が既定で `Authorization` と `Cookie` の値を `[Filtered]` にするため（ただし `cookies` の中身は送っていた）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした（@sentry/cloudflare 11.0.0）。Worker の入り口は `createWorker()` で組み立てて `withSentry` で包む（T-11 の scheduled も同じ仕組みで包まれる）。捕まえていない例外は Hono の `onError` で 500 `internal` にして `reportError`（本番は `captureException`）で送る。Hono の `HTTPException` はそのまま返す。送る前の処理 `scrubEvent` で、要求のヘッダーの `Authorization`・`Cookie` とクッキーを消す。SDK 11 は既定で要求の本文や DB の値まで集めるので、`dataCollection` で、利用者情報・クッキー・本文・応答のヘッダー・DB の値を集めない設定にした（要求のヘッダーは `Authorization`・`Cookie` 以外を集める）。テストは送信口（transport）を差し替えて、本物の SDK が送る直前の中身を受け止めて調べる。SDK は client をプロセスに1つだけ持つので、テストでは Worker と送信口を使い回し、例外の文言をテストごとに変える（同じ例外が続くと重複として落とされる）。500 の応答にも CORS のヘッダーが付くこと（フロントが 500 と通信エラーを見分けるため）はタグなしのテストで確かめた。本番・開発は vars `SENTRY_ENVIRONMENT`（`production` / `development`）で分ける。DSN は T-1 の `.dev.vars.example` のとおり Worker の secret `SENTRY_DSN` から読み、無ければ送らない（T-24 の前に開発の Worker に入れる。T-24 の内容に足した）。バンドルは約 923 KiB（gzip 197 KiB）になった。ローカルの `wrangler dev --env dev` で 401 と CORS のヘッダーが変わらず返ることを確かめた
 
 - [ ] T-11: Cron で毎日 Supabase に問い合わせる
   - 対応: COMMON-N-006 / AC-1, AC-2
@@ -209,7 +210,7 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 - [ ] T-24: 開発環境で家族を登録し、手で確かめる
   - 対応: design.md「移行計画」5、「テストの方針」の手で確かめるもの、COMMON-N-003 / COMMON-N-007 / COMMON-N-008 の測り方
   - 対象ファイル: なし（結果は tasks.md のこの欄に書く）
-  - 内容: 開発に家族（少なくとも管理者）を登録（design.md「家族の登録の仕方」）→ プレビュー URL で次を確かめる
+  - 内容: 開発の Worker に Sentry の DSN を入れる（`wrangler secret put SENTRY_DSN --env dev`。T-10 で足した）→ 開発に家族（少なくとも管理者）を登録（design.md「家族の登録の仕方」）→ プレビュー URL で次を確かめる
     - Google ログイン（登録済み・未登録）
     - Android の Chrome で端末のホーム画面に追加し、アドレスバーなしで開く。新しい版に切り替わる
     - standalone でログアウト → Google で再ログインしてホームに戻れる

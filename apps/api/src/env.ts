@@ -6,6 +6,9 @@ export type WorkerBindings = {
   CORS_ALLOWED_ORIGINS: string[]
   SUPABASE_URL: string
   HYPERDRIVE: Hyperdrive
+  // Sentry（COMMON-N-011）。DSN が無ければ送らない
+  SENTRY_DSN?: string
+  SENTRY_ENVIRONMENT: string
 }
 
 export type Member = typeof members.$inferSelect

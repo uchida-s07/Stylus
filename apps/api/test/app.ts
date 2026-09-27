@@ -11,6 +11,7 @@ export function testAppConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     openDb: () => {
       throw new Error('このテストでは DB を使わない')
     },
+    reportError: () => {},
     ...overrides,
   }
 }

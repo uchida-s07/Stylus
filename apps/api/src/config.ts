@@ -1,3 +1,4 @@
+import { captureException } from '@sentry/cloudflare'
 import { createRemoteJWKSet } from 'jose'
 import type { AppConfig } from './app'
 import { openHyperdriveDb } from './db/client'
@@ -14,5 +15,7 @@ export function configFromEnv(env: WorkerBindings): AppConfig {
       jwks: createRemoteJWKSet(new URL(`${authBase}/.well-known/jwks.json`)),
     }),
     openDb: (e) => openHyperdriveDb(e.HYPERDRIVE.connectionString),
+    // withSentry の中で呼ばれるので、要求の情報は SDK が付ける
+    reportError: (error) => captureException(error),
   }
 }
