@@ -162,11 +162,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
   - 結果: 完了条件を満たした。戻り先の URL の読み分けは `readCallback()`（`src/auth/errors.ts`）で、? の後ろと # の後ろの両方を見る。`error_code=signup_disabled` → 未登録、`error=access_denied` でほかの `error_code` が無い → キャンセル（メッセージなし）、それ以外のエラーやコードもエラーも無い → 失敗。弾かれたときも `error=access_denied` が付きうるので `error_code` を先に見る。コードの引き換えの失敗と、Google の画面へ移れないとき（`signInWithOAuth` のエラー）も失敗にする。ホームが `GET /me` で 403 を受けたら、`signOut({ scope: 'local' })` で端末のセッションを消し、見張りがログイン画面へ送る。ログイン画面に出すメッセージは、最初はルーターの state で渡したが、セッションを消したときに見張り（`RequireSignedIn`）の移動と競合してメッセージが消えたため、メモリに置く形（`setLoginNotice`）にした。ログイン画面は開いたときに一度だけ出して消す。メモリなのでアプリを開き直すと消える（AC-6）。Supabase が実際に戻すエラーの形（`error_code` の値と、? と # のどちらに付くか）は T-24 で未登録のアカウントとキャンセルを試して確かめる（T-24 に足した）
 
-- [ ] T-17: ログインしたまま使い続けられる
+- [x] T-17: ログインしたまま使い続けられる
   - 対応: AUTH-F-003 / AC-1, AC-2, AC-4, AC-5
-  - 対象ファイル: `apps/web/src/auth/session.tsx`、`apps/web/src/api/client.ts`（401 のときに1回だけ更新して送り直す）、`apps/web/src/auth/session.test.tsx`、`apps/web/src/api/client.test.ts`
+  - 対象ファイル: `apps/web/src/auth/session.tsx`（結果として変更なし）、`apps/web/src/api/client.ts`（401 のときに1回だけ更新して送り直す）、`apps/web/src/auth/session.test.tsx`、`apps/web/src/api/client.test.ts`、`apps/web/test/fakeSupabase.ts`・`fakeApi.ts`・`render.tsx`（テスト用の偽物と道具）
   - 内容: 401 を受けたときの分かれ道（更新が無効で失敗 → ログイン画面、通信エラー → 通信できない表示、送り直しても 401 → 読み込み失敗の表示）は単体テストで確かめる（review-notes の「401 の経路は単体テストで確かめる」）
-  - Red: 未記録（想定：期限切れのセッションの更新を待たずに判定してログイン画面を出す／無効なログイン状態でもホームを出す）
+  - 実装メモ: `session.tsx` は変更不要だった（T-14 で INITIAL_SESSION を待って振り分けている）。テスト用の偽の supabase-js（`test/fakeSupabase.ts`）に、supabase-js 2.117 と同じ期限切れの扱い（期限の90秒前から更新してから INITIAL_SESSION を知らせる、無効なら端末のセッションを消す、通信エラーなら残す）と、トークンを発行・確かめる Auth サーバーの代わりを持たせた。API の偽物の `meRoute()` は、そのサーバーが発行した期限内のトークンだけを通す。401 を受けたときの送り直しは `client.ts` の `authorizedFetch`（hc の `fetch` に渡す）。通信エラーは `NetworkError` にそろえた（表示は T-18）
+  - Red: `authorizedFetch` を中身の無い形（トークンを付けて1回送るだけ）にして `pnpm exec vitest run apps/web/src/auth/session.test.tsx apps/web/src/api/client.test.ts` を実行し、401 の分かれ道の6件が失敗。「expected 401 to be 200」（更新して送り直さない）、「expected [ …(1) ] to have a length of 2 but got 1」（送り直しても 401 の確認で1回しか送っていない）、「expected "vi.fn()" to be called with arguments: [ { scope: 'local' } ]」（ログイン状態が無効でもセッションを消さない）、「promise resolved "Response { status: 401, … }" instead of rejecting」（更新が通信エラーでも NetworkError にならない）、「expected TypeError: Failed to fetch to be an instance of NetworkError」、画面の確認（署名鍵の入れ替え）は「Unable to find an element with the text: 母」。AC-1・AC-2・AC-4・AC-5 の4件は、偽物を supabase-js の振る舞いに合わせた上で、変更前のコードのままで通った。期限切れのトークンの更新と無効なログイン状態の破棄は supabase-js が行い、画面は T-14 で更新後の INITIAL_SESSION を待ってから振り分けているため（想定していた「更新を待たずに判定する」形は T-14 の時点で避けていた）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
 - [ ] T-18: 通信できない・読み込めない・登録から外されたときの表示
