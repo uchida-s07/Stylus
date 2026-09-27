@@ -59,11 +59,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: マイグレーションが PGlite に当たり、テスト全体が通る
   - 結果: 完了条件を満たした（drizzle-orm 0.45.3、drizzle-kit 0.31.11、PGlite 0.5.8）。マイグレーションは `apps/api/drizzle/0000_members.sql`、作り直しは `pnpm --filter api db:generate`。`email`・`display_name` は NULL 可のまま置き、空不可（NOT NULL と空・空白だけの禁止）は T-4 でまとめて足す。既定値を持つ `is_admin`・`is_parent`・`is_cook`・`created_at` は NOT NULL にした。ヘルパー `createTestDb()` はテストごとにメモリ上の PGlite を作ってマイグレーションを当てる。ヘルパー自体の確認に `apps/api/test/db.test.ts`（AC なし）を置いた。drizzle-orm＋postgres.js が Workers 向けにバンドルできることを `wrangler deploy --dry-run` で確かめた（約 310 KiB）。テスト・設定ファイルが Node の API を使うため `@types/node` を足し、`apps/api/tsconfig.json` の対象に `test` と `drizzle.config.ts` を加えた。drizzle-kit が生成する `drizzle/meta/` は Prettier の対象から外した
 
-- [ ] T-4: 家族の登録で、重複・空・大文字を拒否する
+- [x] T-4: 家族の登録で、重複・空・大文字を拒否する
   - 対応: AUTH-F-001 / AC-2, AC-3, AC-4, AC-5
   - 対象ファイル: `apps/api/src/db/schema.ts`、`apps/api/drizzle/*.sql`（制約を足すマイグレーション）、`apps/api/src/db/members.test.ts`
-  - Red: 未記録（想定：同じメールの2件目、表示名 "" と "　"、メール空、`Yuriko@example.com` の INSERT がどれも成功してしまい、件数が 1 / 0 のままにならない）
+  - Red: `pnpm exec vitest run apps/api/src/db/members.test.ts` で 8件失敗（AC-2・AC-3（""・"　"・NULL）・AC-4（""・NULL）・AC-5 と `auth_user_id` の重複）。どれも「登録が拒否されなかった: expected undefined to be defined」で、制約が無く INSERT が成功してしまうため。正しい登録の1件だけ通った
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 完了条件を満たした。マイグレーション `0001_members_constraints.sql` で、`email`・`display_name` の NOT NULL、`email`・`auth_user_id` の一意、`email` の空禁止と小文字だけ、`display_name` の空白だけ禁止を足した。空白の判定は、ロケール次第で全角空白が `[[:space:]]` に入らないため、`btrim` で除く文字（半角空白・タブ・改行・全角空白 U+3000）を明示した。テストは拒否の理由まで確かめるため SQLSTATE（23502 / 23505 / 23514）を見る。NULL の登録は型で書けないので、管理者が SQL を手で書く場合を想定して生の SQL で入れる。`auth_user_id` の一意（design.md の制約、AC なし）もタグなしのテストで確かめた
 
 - [ ] T-5: public スキーマの全テーブルで RLS を有効にし、ポリシーを作らない
   - 対応: COMMON-N-003 / AC-1
