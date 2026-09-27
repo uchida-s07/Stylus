@@ -31,7 +31,7 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: `pnpm install`・`pnpm lint`・`pnpm test` が Windows で通る。`pnpm --filter web dev` と `pnpm --filter api dev` が起動する
   - 結果: 完了条件をすべて満たした（pnpm 12.6.0）。ローカルの Hyperdrive の接続文字列は、wrangler が読む `apps/api/.env` に `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE`（バインディング名 `HYPERDRIVE`）で置く。`.dev.vars` は Worker が読む値なので使わない。`wrangler dev --env dev` でも `.env` が読まれることを確かめた。キー名は `apps/api/.env.example` と `README.md` に書いた
 
-- [ ] T-2: 外部サービスを準備し、V-1・V-2・V-3・V-5 を確かめる（管理者の手作業）
+- [x] T-2: 外部サービスを準備し、V-1・V-2・V-3・V-5 を確かめる（管理者の手作業）
   - 対応: design.md「移行計画」1〜4、「リスクと懸念」V-1〜V-5
   - 対象ファイル: なし（Supabase・Cloudflare・GitHub・Sentry・Google Cloud の設定）。結果は design.md の「リスクと懸念」に追記する
   - 内容:
@@ -47,6 +47,7 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
     - V-5：Pages の URL が `https://stylus-family.pages.dev` になったかを確かめる
   - Red: 対象外（外部の設定と検証）
   - 完了条件: V-1・V-3・V-5 の結果（と V-2 の判断）が design.md に書かれている。spec を直す必要が無い、または直して再承認を得ている
+  - 結果: V-1・V-3・V-5 は合格、V-2 は第一候補（DB への `select`）で作ると判断し、design.md の「検証の結果（T-2）」と「T-2 で決めたこと」に書いた。spec を直す必要は無い。開発側の準備（Supabase `stylus-dev`、Google の OAuth クライアント、Pages `stylus-family` と本番・プレビューの環境変数、Hyperdrive `stylus-dev`、Worker `stylus-api-dev`、Sentry `stylus-web`・`stylus-api`、GitHub の Environments と secret）は済んだ。本番側の準備はオーナーの判断で T-25 の手前に回した（T-25 の内容に足した）
 
 ## 1. DB
 
@@ -215,7 +216,7 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 - [ ] T-25: 本番に出す（`/spec-close` の後でもよい）
   - 対応: design.md「移行計画」6・7
   - 対象ファイル: なし
-  - 内容: `develop` を `main` にマージ → `stylus` にマイグレーション・`stylus-api` にデプロイ → 本番に家族4人を登録 → 公開キーで本番の Data API を読めない・書けないことを確かめる → 各自のスマホでログインし、ホーム画面に追加する
+  - 内容: 先に、T-2 で後回しにした本番側の準備をする（Supabase `stylus` を Tokyo で作り、Auth・API キー・Data API を開発と同じに設定する。Site URL・Redirect URLs は `https://stylus-family.pages.dev`。本番用の Google の OAuth クライアントを作り、同意画面を「テスト中」のまま使うか公開するかを決める。Hyperdrive の本番の設定（キャッシュ無効）を作って `wrangler.toml` の本番に入れる。Pages の本番の環境変数 `VITE_SUPABASE_URL`・`VITE_SUPABASE_PUBLISHABLE_KEY`・`VITE_API_URL` と、GitHub の Environment `production` の `DATABASE_URL` を入れる）→ `develop` を `main` にマージ → `stylus` にマイグレーション・`stylus-api` にデプロイ → 本番に家族4人を登録 → 公開キーで本番の Data API を読めない・書けないことを確かめる → 各自のスマホでログインし、ホーム画面に追加する
   - Red: 対象外（手作業）
   - 完了条件: 家族4人が本番にログインでき、端末のホーム画面から開ける
 
