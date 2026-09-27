@@ -33,7 +33,7 @@
 - API 呼び出しはアクセストークンを `Authorization: Bearer` で送る。Cookie は使わない
 - 認可（権限チェック）は API 側で行う。フロントの表示の出し分けは見た目のためだけ
 - Supabase の Data API 経由の直接アクセスは塞ぐ
-- サービスロールキーと DB 接続情報は Workers の secret にだけ置く。フロントに置くのは Supabase の URL と公開キーだけ
+- サービスロールキーと DB 接続情報は Workers の secret（Hyperdrive を使うならその設定）にだけ置く。例外として、マイグレーション用の DB 接続情報は GitHub Actions の secret にも置き、ローカル開発用の値は git の管理外のファイル（`.dev.vars` / `.env`）に置く。フロントには秘密情報を置かない。フロントに置くのは Supabase の URL と公開キー、API の URL、Sentry の DSN（どれも公開してよい値）だけ
 - 一般公開のサインアップは無効。家族のアカウントは管理者が事前登録する
 - CORS で許可するのは、自分のフロントのオリジン、（開発環境のみ）プレビュー用 URL、開発用の localhost だけ
 - `apps/web` から `apps/api` の実行コードを import しない（`import type` のみ可）。共有するもの（型・スキーマ・ルール）は `packages/` に置く
