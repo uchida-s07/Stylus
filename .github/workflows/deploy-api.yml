@@ -8,8 +8,7 @@ name: Deploy API
 
 on:
   push:
-    # spec/001-foundation は一時的（T-23 の最初の確認用。手動実行はこのファイルが develop に入るまで使えないため）。確かめたら外す
-    branches: [develop, main, spec/001-foundation]
+    branches: [develop, main]
   workflow_dispatch:
 
 permissions:

@@ -218,12 +218,13 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 実装メモ: `ci.yml` は `develop`・`main` への PR で、`pnpm install --frozen-lockfile` → `pnpm lint` → `pnpm typecheck`（計画に無かったが、Vitest とビルドは型を確かめないので足した）→ `pnpm test` → `pnpm --filter web build` → `node packages/repo-checks/src/scan-build.ts apps/web/dist`。アクションは checkout v7・pnpm/action-setup v6（pnpm の版は `packageManager` から読む、ストアをキャッシュ）・setup-node v7（`.node-version`）。`scan-build.ts` は Node 24 の型の取り除きでそのまま動かす（import に `.ts` を付けるため、repo-checks の tsconfig に `allowImportingTsExtensions`）。ビルド成果物を文字列の形で調べると、supabase-js がキーの見分けに持つ `sb_secret_` に引っかかったため、オーナーの判断で成果物は値の形（`findSecretValues`：`sb_secret_` の後ろにキーの文字が16文字以上、パスワード入りの接続文字列）で探すことにし、spec の COMMON-N-004 の測り方の1文と design.md を直して review-notes に記録した。AC-1（追跡ファイル）の検査は変えていない。手元のビルド成果物で合格すること、値の形・ライブラリの文字列だけのときの見分けを `scan-build.test.ts`（タグなし）で確かめた
   - 結果: 完了条件を満たした。この spec の下書き PR（uchida-s07/Stylus#2）で CI の `check` が走り、install・lint・型検査・テスト（22ファイル）・フロントのビルド・ビルド成果物の検査のすべてが成功し、結果が PR に出た（2m21s）。Cloudflare Pages のプレビューのビルドも成功した
 
-- [ ] T-23: マイグレーションと API のデプロイ
+- [x] T-23: マイグレーションと API のデプロイ
   - 対応: design.md「デプロイ」
   - 対象ファイル: `.github/workflows/deploy-api.yml`
   - 内容: `develop` への push で `stylus-dev` へマイグレーション → `stylus-api-dev` へ `wrangler deploy`。`main` への push で本番。`workflow_dispatch` で `spec/*` から開発にだけ流せる（本番には流せない）。Environments `development` / `production` の secret を使う。マイグレーションは Supavisor のセッションモードの接続文字列で流す
   - Red: 対象外（デプロイの設定）
   - 完了条件: `spec/001-foundation` から手動実行して、`stylus-dev` にマイグレーションが当たり、`stylus-api-dev` がデプロイされる
+  - 結果: 完了条件を満たした（確かめ方はオーナーの判断で変えた）。GitHub の手動実行（`workflow_dispatch`）は、ワークフローのファイルが既定ブランチ（`develop`）に入るまで使えないため、`spec/001-foundation` への push でも動くトリガーを一時的に足して1回流し、確かめた後に外した（develop には squash で外した後の形だけが入る）。実行 36404081981 は Environment `development` で動き、Drizzle Kit の migrate が「migrations applied successfully」で `stylus-dev` に当たり、`stylus-api-dev` がデプロイされた（Cron `0 19 * * *` も登録）。デプロイ後の `https://stylus-api-dev.utti-nbst-s.workers.dev` で、トークン無しの `GET /me` が 401 `unauthenticated`、プレビューのオリジンからの事前確認で `Access-Control-Allow-Origin` が返り、ほかのオリジンには返らないことを確かめた。`wrangler.toml` に `account_id`（秘密ではない）を書いた（CI の API トークンがアカウントを読めなくてもデプロイ先を決められるように）。本番（`main` への push）は、本番の Supabase・`SUPABASE_URL`・Environments `production` の `DATABASE_URL` がまだ無いので、T-25 の準備ができるまで `main` へ入れない。次の spec からは、`develop` にこのワークフローが入った後なので手動実行で開発へ流せる
 
 ## 7. 通しの確認
 
