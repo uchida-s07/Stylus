@@ -24,9 +24,7 @@ export function LoginPage() {
       <Stack>
         <Title order={1}>Stylus</Title>
         {notice && <Alert color="red">{LOGIN_NOTICE_MESSAGES[notice]}</Alert>}
-        <Button size="lg" onClick={() => void login()}>
-          Google でログイン
-        </Button>
+        <Button onClick={() => void login()}>Google でログイン</Button>
       </Stack>
     </Container>
   )

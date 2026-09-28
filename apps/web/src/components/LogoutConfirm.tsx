@@ -23,7 +23,14 @@ export function LogoutConfirm({
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} title="ログアウトしますか？" centered>
+    // 右上の閉じるボタン（×）は小さく押しにくいので出さない（COMMON-N-008）。「キャンセル」・Esc・外側を押すと閉じる
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="ログアウトしますか？"
+      centered
+      withCloseButton={false}
+    >
       <Group justify="flex-end">
         <Button variant="default" onClick={onClose} disabled={busy}>
           キャンセル

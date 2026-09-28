@@ -243,6 +243,13 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - Red: 対象外（手動確認）
   - 完了条件: すべての項目の結果が書かれ、問題が無い（あれば直すタスクを足す）
 
+- [x] T-26: 押せる部分を 44×44px 以上にする（T-24 で見つけた）
+  - 対応: COMMON-N-008
+  - 対象ファイル: `apps/web/src/app/theme.ts`（新規）、`apps/web/src/app/AppRoot.tsx`、`apps/web/src/components/LogoutConfirm.tsx`、`apps/web/src/pages/LoginPage.tsx`、`apps/web/src/app/tap-targets.test.tsx`
+  - 内容: T-24 でプレビューを測ると、ホームの「ログアウト」と確認の「キャンセル」「ログアウト」が 108×36px、確認の右上の「×」が 28×28px だった。オーナーの判断（A案）で、Mantine のテーマでボタンの標準の大きさを `lg`（高さ 50px）にし、確認ダイアログの「×」を外した（「キャンセル」・Esc・外側を押すと閉じる）。今後足すボタンも自動で満たす
+  - Red: `pnpm exec vitest run apps/web/src/app/tap-targets.test.tsx`（jsdom は大きさを測れないので、Mantine の大きさの指定 `--button-height-lg` で確かめる。タグなし。COMMON-N-008 は手動で確かめる要件のため）で、ホームの「ログアウト」が「expected '--button-bg: var(--mantine-color-defa…' to contain '--button-height-lg'」で失敗。ログイン画面のボタンは元から `lg` だったので通った
+  - 完了条件: 対象のテストとテスト全体が通る。プレビューで測り直して 44px 以上になっている
+
 - [ ] T-25: 本番に出す（`/spec-close` の後でもよい）
   - 対応: design.md「移行計画」6・7
   - 対象ファイル: なし
