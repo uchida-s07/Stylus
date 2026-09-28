@@ -209,13 +209,14 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 ## 6. CI・デプロイ
 
-- [ ] T-22: PR ごとの CI
+- [x] T-22: PR ごとの CI
   - 対応: COMMON-N-010（CI）、COMMON-N-004（ビルド成果物の検査）
   - 対象ファイル: `.github/workflows/ci.yml`、`packages/repo-checks/src/scan-build.ts`（ビルド成果物を T-13 の定義で検査するスクリプト）
   - 内容: `develop`・`main` への PR で `pnpm lint`、`pnpm test`、フロントのビルドと成果物の検査
   - Red: 対象外（CI の設定）
   - 完了条件: この spec の PR で CI が走り、結果が PR に出る
   - 実装メモ: `ci.yml` は `develop`・`main` への PR で、`pnpm install --frozen-lockfile` → `pnpm lint` → `pnpm typecheck`（計画に無かったが、Vitest とビルドは型を確かめないので足した）→ `pnpm test` → `pnpm --filter web build` → `node packages/repo-checks/src/scan-build.ts apps/web/dist`。アクションは checkout v7・pnpm/action-setup v6（pnpm の版は `packageManager` から読む、ストアをキャッシュ）・setup-node v7（`.node-version`）。`scan-build.ts` は Node 24 の型の取り除きでそのまま動かす（import に `.ts` を付けるため、repo-checks の tsconfig に `allowImportingTsExtensions`）。ビルド成果物を文字列の形で調べると、supabase-js がキーの見分けに持つ `sb_secret_` に引っかかったため、オーナーの判断で成果物は値の形（`findSecretValues`：`sb_secret_` の後ろにキーの文字が16文字以上、パスワード入りの接続文字列）で探すことにし、spec の COMMON-N-004 の測り方の1文と design.md を直して review-notes に記録した。AC-1（追跡ファイル）の検査は変えていない。手元のビルド成果物で合格すること、値の形・ライブラリの文字列だけのときの見分けを `scan-build.test.ts`（タグなし）で確かめた
+  - 結果: 完了条件を満たした。この spec の下書き PR（uchida-s07/Stylus#2）で CI の `check` が走り、install・lint・型検査・テスト（22ファイル）・フロントのビルド・ビルド成果物の検査のすべてが成功し、結果が PR に出た（2m21s）。Cloudflare Pages のプレビューのビルドも成功した
 
 - [ ] T-23: マイグレーションと API のデプロイ
   - 対応: design.md「デプロイ」
