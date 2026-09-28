@@ -31,11 +31,12 @@ export function LogoutConfirm({
       centered
       withCloseButton={false}
     >
-      <Group justify="flex-end">
-        <Button variant="default" onClick={onClose} disabled={busy}>
+      {/* 幅 360px のスマホでも2つのボタンを横に並べる（半分ずつの幅にし、左右の余白を詰める） */}
+      <Group grow wrap="nowrap">
+        <Button variant="default" px="md" onClick={onClose} disabled={busy}>
           キャンセル
         </Button>
-        <Button color="red" onClick={() => void confirm()} loading={busy}>
+        <Button color="red" px="md" onClick={() => void confirm()} loading={busy}>
           ログアウト
         </Button>
       </Group>
