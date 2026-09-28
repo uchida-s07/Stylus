@@ -1,0 +1,56 @@
+# DB のマイグレーション → API のデプロイ（design.md「デプロイ」）
+# - develop への push：stylus-dev へマイグレーション → stylus-api-dev へデプロイ
+# - main への push：stylus へマイグレーション → stylus-api へデプロイ
+# - 手動実行（workflow_dispatch）：選んだブランチ（develop・spec/*）を開発にだけ流す。本番には流せない
+# 秘密情報は GitHub の Environments（development / production）の secret から読む。
+# Environments の設定で、development は develop・spec/*、production は main からしか使えない
+name: Deploy API
+
+on:
+  push:
+    # spec/001-foundation は一時的（T-23 の最初の確認用。手動実行はこのファイルが develop に入るまで使えないため）。確かめたら外す
+    branches: [develop, main, spec/001-foundation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # 本番に流れるのは main への push だけ。それ以外（手動実行を含む）は開発
+    environment: ${{ github.event_name == 'push' && github.ref_name == 'main' && 'production' || 'development' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # 同じ環境へのデプロイは順番に流す（マイグレーションの途中で止めない）
+    concurrency:
+      group: deploy-api-${{ github.event_name == 'push' && github.ref_name == 'main' && 'production' || 'development' }}
+      cancel-in-progress: false
+    env:
+      # wrangler deploy の --env（本番は付けない）
+      WRANGLER_ENV_FLAG: ${{ github.event_name == 'push' && github.ref_name == 'main' && '' || '--env dev' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # pnpm の版は package.json の packageManager から読む
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      - run: pnpm install --frozen-lockfile
+
+      # API より先に流す。接続文字列は Supavisor のセッションモード（Environments の secret DATABASE_URL）
+      - name: DB のマイグレーション（Drizzle Kit）
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm exec drizzle-kit migrate
+
+      - name: API のデプロイ（wrangler）
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm exec wrangler deploy $WRANGLER_ENV_FLAG

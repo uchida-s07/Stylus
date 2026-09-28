@@ -2,6 +2,8 @@
 # 開発：stylus-api-dev（wrangler deploy --env dev）。ローカルの wrangler dev も開発用の設定で動かす
 # vars は環境ごとに引き継がれないので、[env.dev.vars] にもすべて書く
 name = "stylus-api"
+# Cloudflare のアカウント（秘密ではない）。CI の API トークンがアカウントを読めなくてもデプロイ先を決められるように書く
+account_id = "9e88c0c62acc873870c09900da5fc011"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
