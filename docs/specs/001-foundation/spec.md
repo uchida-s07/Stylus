@@ -3,10 +3,10 @@
 # 001 基盤（アカウント・認証・権限・PWA・API/DB・運用）
 
 tier: L
-status: approved
+status: done
 created: 2026-09-27
 approved: 2026-09-27 13:19
-done:
+done: 2026-09-29
 review: 2026-09-27 合格（5回目。R-4〈4回目〉と R-1〜R-5〈5回目〉は承知で進める。docs/review-notes.md 参照）
 
 <!-- status: draft | approved | done -->
