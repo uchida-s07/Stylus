@@ -163,7 +163,7 @@ packages/
   - CPU 時間（COMMON-N-007）、画面幅と押せる大きさ（COMMON-N-008）
   - PR ごとに GitHub Actions が走り、結果が PR に出ること（最初の PR で）
   - 端末のホーム画面のアイコンから開いた状態（standalone）で、ログアウト → Google で再ログインして、アプリのホームに戻れること
-- CI で確かめるもの：フロントのビルド成果物に秘密情報の形が無いこと（COMMON-N-004 の測り方）
+- CI で確かめるもの：フロントのビルド成果物に秘密情報の値の形が無いこと（COMMON-N-004 の測り方）。形の定義は `packages/repo-checks/src/secret-patterns.ts` にだけ置き、成果物は `scan-build.ts` で調べる
 - 例のファイル（`.env.example` など、git で追跡するもの）にはキー名だけを書き、値は空にする。仮の値でも接続文字列の形（`postgres://` など）を書くと COMMON-N-004/AC-1 の検査に引っかかるため
 
 ## 検討した代替案
@@ -192,9 +192,27 @@ handoff 5章の検証項目（V-4 は作れない日の spec へ移した）。�
 | V-3 | Workers の無料プランで Hyperdrive から Supabase につなげるか | Supavisor のトランザクションモード（`prepare: false`）。この場合、接続文字列を Workers の secret に置く | なし |
 | V-5 | Pages のプロジェクト名 `stylus` が使えるか | **確かめ済み（2026-09-27）：`stylus.pages.dev` は他人が使っていて取れない。** プロジェクト名は `stylus-family`（`https://stylus-family.pages.dev`）にした（オーナー決定）。プロジェクトを作るときに実際にこの URL になったかを確かめ、違えば CORS と Supabase Auth に反映する | spec の COMMON-N-005 は `stylus-family.pages.dev` で書いてある |
 
+### 検証の結果（T-2）
+
+| # | 結果 | 日付 |
+|---|---|---|
+| V-1 | **合格。代替は不要で、spec は直さない。** 開発（`stylus-dev`）で確かめた：(a) Email のログイン方法を無効にしたままでも、管理画面（Add user → Create new user、Auto Confirm User）でメールアドレスの利用者を作れた。(b) サインアップ無効のまま、その利用者が Supabase の authorize URL から Google でログインできた。(c) 利用者は増えず（`auth.users` は1行のまま、`id` も同じ）、`auth.identities` に `google` が1件加わった。`raw_app_meta_data` はログイン前 `{"provider":"email","providers":["email"]}`、ログイン後 `{"provider":"email","providers":["email","google"]}`（`provider` は `email` のまま。見込みどおりで、`sub` で照合する方式のまま動く） | 2026-09-27 |
+| V-2 | **第一候補（Cron から DB への `select`）で作る。** Supabase の公式情報（Project Pausing）は、休止の判断を「過去1週間の、利用者による DB の活動（user database activity / user queries）が足りないか」としており、Data API の経由かどうかは条件にしていない。Hyperdrive 経由の問い合わせは DB への問い合わせそのものなので、アクセスに数えられると判断した。公式情報は「たいてい1日に数回の問い合わせで足りる」としているので、毎日1回の Cron と家族の利用で足りるかを公開後に運用で見る（休止しかけたら回数を増やす） | 2026-09-27 |
+| V-3 | **合格。代替（Supavisor のトランザクションモードを Workers から直接）は不要。** Hyperdrive の設定 `stylus-dev`（ID `d8d17c5944554666b7f8da0ec446cc06`、キャッシュ無効）を作り、`stylus-api-dev`（Workers Free、`nodejs_compat`、postgres.js）に一時的な確認用の経路を置いて `select 1` を3回投げ、すべて成功した（20〜70ms）。`now()` が毎回変わり、キャッシュが効いていないことも確かめた。確認用の経路は消して配置し直した。Hyperdrive の接続先は Supavisor のセッションモード（`aws-0-ap-northeast-1.pooler.supabase.com:5432`）。Cloudflare の手順は Supabase の直接接続を勧めているが、直接接続は IPv6 だけのため、IPv4 で使えるセッションモードで作った | 2026-09-27 |
+| V-5 | **合格。** Pages のプロジェクト `stylus-family` を GitHub（`uchida-s07/Stylus`、本番ブランチ `main`、全ブランチでプレビュー）とつなぎ、URL は `https://stylus-family.pages.dev` になった。CORS・Supabase Auth の値は変えなくてよい | 2026-09-27 |
+
+T-2 で決めたこと（2026-09-27 オーナー決定）：
+
+- Supabase のリージョンは Tokyo（ap-northeast-1）。作るときに「Enable Data API」「Automatically expose new tables」を外し、「Enable automatic RLS」を入れた（RLS はマイグレーションでも有効にする。二重の備え）。JWT の署名鍵は最初から ECC（P-256）だった
+- 本番の Supabase `stylus` は、T-25（本番に出す）の手前まで作らない。Cron（T-11）が動く前に作ると、7日間アクセスが無く休止するため。本番の Auth の設定と本番用の OAuth クライアントもそのときに行う
+- Google の OAuth 同意画面は公開せず「テスト中」のまま使い、使う Google アカウントをテストユーザーに登録する。公開するにはホームページとプライバシーポリシーの URL が必須で、そのページが無いため。家族以外は Google の画面で止まる（Supabase のサインアップ無効に加えた守り）。テストユーザーは、同意から7日たつと Google の同意画面がもう一度出ることがある（アプリのログイン状態は Supabase が持つので切れない）。本番でどうするかは本番の準備のときに決める
+- 開発の Supabase の URL 設定：Site URL は `http://localhost:5173`、Redirect URLs は `http://localhost:5173/**` と `https://*.stylus-family.pages.dev/**`
+- GitHub の Environments（`development` / `production`）は、private リポジトリでは GitHub Pro 以上でないと secret を置けない（GitHub Free では public リポジトリだけ）。オーナーは学生特典の GitHub Pro を使って、design のとおり Environments で分けることにした（案「リポジトリの secret を `DEV_` / `PROD_` の名前で分ける」は採らなかった）。ブランチ保護の節の「学生特典（GitHub Pro）に頼らない方針」は、Environments については例外になる。学生特典が切れると Environments の secret が使えなくなるので、そのときはリポジトリの secret を名前で分ける形に切り替える。Environments を使えるブランチも絞った（`production` は `main` だけ、`development` は `develop` と `spec/*`）。`spec/*` から本番に流せないことを、ワークフローの書き方だけでなく GitHub の設定でも守る
+- Pages のビルド：ビルドコマンド `pnpm --filter web build`、出力 `apps/web/dist`、ルートはリポジトリの一番上。Node の版は `.node-version`（24）、pnpm の版は環境変数 `PNPM_VERSION`（本番・プレビューとも `12.6.0`。ビルド環境の既定は 10 系のため）で合わせる。`VITE_SUPABASE_URL`・`VITE_SUPABASE_PUBLISHABLE_KEY` はプレビューにだけ `stylus-dev` の値を入れ、本番は本番の Supabase を作るときに入れる
+
 そのほかの懸念：
 
-- Hyperdrive はクエリの結果をキャッシュする。Cron の問い合わせがキャッシュで返ると DB に届かないので、Cron ではキャッシュを使わない接続にするか、キャッシュされない問い合わせにする
+- Hyperdrive はクエリの結果をキャッシュする（既定で有効）。Cron の問い合わせがキャッシュで返ると DB に届かず、書き込んだ直後の読み取りで古い結果が返ることもあるので、Hyperdrive の設定でキャッシュを無効にする（2026-09-27 オーナー決定。家族4人の規模ではキャッシュの効果が小さい）
 - Supabase の既定のままでは、ログイン状態に期限が無い。AUTH-F-003 の「7日」は下限の約束で、実際はもっと長く続く
 - ブランチ保護が無いので、CI が失敗した PR をマージしないのは運用で守る
 - Supabase の直接接続は IPv6 だけで、GitHub Actions の実行環境からはつながらないことがある。マイグレーションは Supavisor のセッションモード（IPv4 で使える）の接続文字列で流す

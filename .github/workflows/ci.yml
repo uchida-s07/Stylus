@@ -1,0 +1,50 @@
+# PR ごとの検査（COMMON-N-010、COMMON-N-004）
+# develop・main への PR で、lint・型検査・テスト・フロントのビルドとビルド成果物の検査を行う
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+# 同じ PR に続けて push したら、古い実行は止める
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      # pnpm の版は package.json の packageManager から読む
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: lint（ESLint と Prettier）
+        run: pnpm lint
+
+      - name: 型検査
+        run: pnpm typecheck
+
+      - name: テスト
+        run: pnpm test
+
+      # 本番の配信は Cloudflare Pages が自分でビルドする。ここではビルドが通ることと、
+      # 成果物に秘密情報の値が入っていないことを確かめる
+      - name: フロントのビルド
+        run: pnpm --filter web build
+
+      - name: ビルド成果物の検査（秘密情報の値の形）
+        run: node packages/repo-checks/src/scan-build.ts apps/web/dist

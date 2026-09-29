@@ -60,7 +60,7 @@
 
 - テストの実行: `pnpm test`
 - lint の実行: `pnpm lint`
-- テストの置き場所: `apps/**/*.test.{ts,tsx}`, `packages/**/*.test.ts`
+- テストの置き場所: `apps/**/*.test.ts`, `apps/**/*.test.tsx`, `packages/**/*.test.ts`
 - 全体レビューを勧める done の件数: 3
 - 全体レビューを勧める進行中 spec の件数: 2
 - approved のまま注意を出す日数: 30

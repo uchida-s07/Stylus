@@ -1,0 +1,4 @@
+# Worker が読む secret・変数のローカル用の値（wrangler dev 用）
+# このファイルを .dev.vars にコピーして値を入れる（.dev.vars は git の管理外）
+# 本番・開発の Workers には wrangler secret put で入れる
+SENTRY_DSN=
