@@ -10,7 +10,7 @@ spec: ./spec.md
 
 - 家族4人のためのアプリの最初の spec。ご飯・車・お金の各機能を載せる土台を作る
 - 目標：家族が Google でログインしてホーム画面から開ける状態を作ること。あわせて、各機能の spec が「API を1本足して画面を1枚足す」だけで作り始められる状態にすること
-- 材料：`handoff/design-phase-decisions.md` の 2.1・2.7・4章・5章・6章（オーナー承認済みの決定）
+- 材料：設計フェーズでオーナーが承認した決定（アカウント・認証・権限、端末と形態、技術とアーキテクチャ、実物で確かめる項目、未決定事項）。技術判断の理由は ADR-0001〜0006 に残した
 
 ## 非目標
 
@@ -172,7 +172,7 @@ packages/
 |----|----------------|
 | `members` の主キーを Auth の利用者 ID にする | V-1 の代替（サインアップ許可＋許可リスト）に切り替えると、ログイン前に行を作れなくなる |
 | 家族の情報を Auth の `app_metadata` に持つ | 各機能のテーブルから外部キーで参照できない。管理画面での編集も手間 |
-| 家族を登録するスクリプトをリポジトリに置く | 4人を一度登録するだけなので、handoff 2.1 のとおり Supabase の管理画面の手作業で足りる |
+| 家族を登録するスクリプトをリポジトリに置く | 4人を一度登録するだけなので、設計フェーズの決定のとおり Supabase の管理画面の手作業で足りる（手順は `docs/architecture.md` の「家族の登録の仕方」） |
 | JWT を共有シークレット（HS256）で検証する | Supabase の新しいプロジェクトは非対称鍵が標準。シークレットを Worker に置かずに済む |
 | テストで開発用の Supabase（`stylus-dev`）を使う | 通信が要り、データが混ざり、CI に DB の接続情報を置くことになる |
 | `develop` を置かず `main` だけで回す | オーナーが develop を挟む運用を選んだ（2026-09-27） |
@@ -183,7 +183,7 @@ packages/
 
 ## リスクと懸念
 
-handoff 5章の検証項目（V-4 は作れない日の spec へ移した）。実装の最初に確かめ、だめなら代替に切り替える。
+設計フェーズで挙げた、実物で確かめる項目（V-4 は作れない日の spec へ移した）。実装の最初に確かめ、だめなら代替に切り替える。
 
 | # | 確かめること | だめなときの代替 | 要件への影響 |
 |---|---|---|---|
@@ -234,19 +234,19 @@ T-2 で決めたこと（2026-09-27 オーナー決定）：
 
 家族の登録の仕方：Auth の管理画面で利用者を作る（メールを送らない方法で）→ SQL エディタで `members` に表示名・立場・ロールを入れる。`auth_user_id` には `auth.users` からそのメールアドレスの利用者 ID を引いて入れる（1文の INSERT … SELECT に `RETURNING id, email, auth_user_id` を付ける）。メールアドレスを打ち間違えると0件のまま成功扱いで終わるので、1人ごとに結果が1行表示されることを確かめ、最後に `members` を SELECT して人数がそろい、全員の `auth_user_id` が埋まっていることを確かめる。登録する値（2026-09-27 時点）：せいご＝管理者、父・母＝親、母＝料理担当
 
-この節の手順（とくに家族の登録の仕方）は、/spec-close のときに常設の場所（`docs/architecture.md` の運用の節）へ移し、AUTH-F-001 の「決められた手順」がそこを指すようにする。design.md の中の handoff への参照は、ADR にしたらその ADR 番号に置き換える（handoff は消す予定の一時資料のため）。
+この節の手順（とくに家族の登録の仕方）は、/spec-close のときに常設の場所（`docs/architecture.md` の運用の節）へ移し、AUTH-F-001 の「決められた手順」がそこを指すようにする。design.md の中の handoff への参照は、ADR 番号と、handoff に頼らない書き方に置き換えた（2026-09-29。handoff は消す予定の一時資料のため）。
 
 ## 残すべき ADR の候補
 
-| 判断 | 理由 |
-|-----|------|
-| フロントとバックエンドの完全分離 | 将来のネイティブアプリ移行、役割分離による堅牢さ（handoff 4.7） |
-| フロントは Vite ＋ React（Next.js 静的出力から変更） | 静的ホスティングに素直で、Next.js の機能はほぼ使えないため（handoff 4.7） |
-| Google ログイン＋事前登録、家族の照合は `members` の表で行う | 全員 Google アカウントを持つ。メール送信が要らない。V-1 の結果に左右されない |
-| Supabase Auth ＋ Postgres、Data API は塞ぎ Hono 経由 | 認可を API に集約する（handoff 4.7） |
-| JWT は JWKS（非対称鍵）で検証する | シークレットを Worker に置かずに済む |
-| DB 接続は Hyperdrive（V-3 の結果次第で Supavisor） | 検証の結果を残す |
-| 配布形態は PWA | Google Play の登録費がかかるため（handoff 4.7） |
-| ブランチ運用（main / develop / spec/*） | Pages の本番とプレビューの分け方に直結する |
-| マイグレーションは GitHub Actions で自動、DB 接続情報を GitHub の secret にも置く | 秘密情報の置き場所の例外になるため |
-| ローカル環境は Windows に直接構築 | 必要なツールが揃っている（handoff 4.7） |
+| 判断 | 理由 | ADR |
+|-----|------|-----|
+| フロントとバックエンドの完全分離 | 将来のネイティブアプリ移行、役割分離による堅牢さ | [ADR-0001](../../adr/0001-separate-frontend-and-backend.md) |
+| フロントは Vite ＋ React（Next.js 静的出力から変更） | 静的ホスティングに素直で、Next.js の機能はほぼ使えないため | [ADR-0002](../../adr/0002-frontend-vite-react.md) |
+| Google ログイン＋事前登録、家族の照合は `members` の表で行う | 全員 Google アカウントを持つ。メール送信が要らない。V-1 の結果に左右されない | [ADR-0003](../../adr/0003-google-login-and-preregistration.md) |
+| Supabase Auth ＋ Postgres、Data API は塞ぎ Hono 経由 | 認可を API に集約する | [ADR-0004](../../adr/0004-supabase-with-data-api-closed.md) |
+| JWT は JWKS（非対称鍵）で検証する | シークレットを Worker に置かずに済む | [ADR-0005](../../adr/0005-jwt-verification-with-jwks.md) |
+| DB 接続は Hyperdrive（V-3 の結果次第で Supavisor） | 検証の結果を残す | [ADR-0006](../../adr/0006-db-connection-via-hyperdrive.md) |
+| 配布形態は PWA | Google Play の登録費がかかるため | —（ADR にしない） |
+| ブランチ運用（main / develop / spec/*） | Pages の本番とプレビューの分け方に直結する | —（ADR にしない） |
+| マイグレーションは GitHub Actions で自動、DB 接続情報を GitHub の secret にも置く | 秘密情報の置き場所の例外になるため | —（ADR にしない） |
+| ローカル環境は Windows に直接構築 | 必要なツールが揃っている | —（ADR にしない） |
