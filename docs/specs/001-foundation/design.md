@@ -238,15 +238,15 @@ T-2 で決めたこと（2026-09-27 オーナー決定）：
 
 ## 残すべき ADR の候補
 
-| 判断 | 理由 |
-|-----|------|
-| フロントとバックエンドの完全分離 | 将来のネイティブアプリ移行、役割分離による堅牢さ（handoff 4.7） |
-| フロントは Vite ＋ React（Next.js 静的出力から変更） | 静的ホスティングに素直で、Next.js の機能はほぼ使えないため（handoff 4.7） |
-| Google ログイン＋事前登録、家族の照合は `members` の表で行う | 全員 Google アカウントを持つ。メール送信が要らない。V-1 の結果に左右されない |
-| Supabase Auth ＋ Postgres、Data API は塞ぎ Hono 経由 | 認可を API に集約する（handoff 4.7） |
-| JWT は JWKS（非対称鍵）で検証する | シークレットを Worker に置かずに済む |
-| DB 接続は Hyperdrive（V-3 の結果次第で Supavisor） | 検証の結果を残す |
-| 配布形態は PWA | Google Play の登録費がかかるため（handoff 4.7） |
-| ブランチ運用（main / develop / spec/*） | Pages の本番とプレビューの分け方に直結する |
-| マイグレーションは GitHub Actions で自動、DB 接続情報を GitHub の secret にも置く | 秘密情報の置き場所の例外になるため |
-| ローカル環境は Windows に直接構築 | 必要なツールが揃っている（handoff 4.7） |
+| 判断 | 理由 | ADR |
+|-----|------|-----|
+| フロントとバックエンドの完全分離 | 将来のネイティブアプリ移行、役割分離による堅牢さ | [ADR-0001](../../adr/0001-separate-frontend-and-backend.md) |
+| フロントは Vite ＋ React（Next.js 静的出力から変更） | 静的ホスティングに素直で、Next.js の機能はほぼ使えないため | [ADR-0002](../../adr/0002-frontend-vite-react.md) |
+| Google ログイン＋事前登録、家族の照合は `members` の表で行う | 全員 Google アカウントを持つ。メール送信が要らない。V-1 の結果に左右されない | [ADR-0003](../../adr/0003-google-login-and-preregistration.md) |
+| Supabase Auth ＋ Postgres、Data API は塞ぎ Hono 経由 | 認可を API に集約する | [ADR-0004](../../adr/0004-supabase-with-data-api-closed.md) |
+| JWT は JWKS（非対称鍵）で検証する | シークレットを Worker に置かずに済む | [ADR-0005](../../adr/0005-jwt-verification-with-jwks.md) |
+| DB 接続は Hyperdrive（V-3 の結果次第で Supavisor） | 検証の結果を残す | [ADR-0006](../../adr/0006-db-connection-via-hyperdrive.md) |
+| 配布形態は PWA | Google Play の登録費がかかるため | —（ADR にしない） |
+| ブランチ運用（main / develop / spec/*） | Pages の本番とプレビューの分け方に直結する | —（ADR にしない） |
+| マイグレーションは GitHub Actions で自動、DB 接続情報を GitHub の secret にも置く | 秘密情報の置き場所の例外になるため | —（ADR にしない） |
+| ローカル環境は Windows に直接構築 | 必要なツールが揃っている | —（ADR にしない） |
