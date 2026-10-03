@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // node は nodejs_compat の API とテスト・設定ファイル（Node で動く）のため
+    "types": ["@cloudflare/workers-types", "node"]
+  },
+  "include": ["src", "test", "drizzle.config.ts", "vitest.config.ts"]
+}

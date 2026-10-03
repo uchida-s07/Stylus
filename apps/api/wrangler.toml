@@ -1,0 +1,43 @@
+# 本番：stylus-api（wrangler deploy）
+# 開発：stylus-api-dev（wrangler deploy --env dev）。ローカルの wrangler dev も開発用の設定で動かす
+# vars は環境ごとに引き継がれないので、[env.dev.vars] にもすべて書く
+name = "stylus-api"
+# Cloudflare のアカウント（秘密ではない）。CI の API トークンがアカウントを読めなくてもデプロイ先を決められるように書く
+account_id = "9e88c0c62acc873870c09900da5fc011"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Supabase を休止させないための Cron（COMMON-N-006）。UTC で書く：19:00 UTC = 日本時間の毎朝 4:00
+[triggers]
+crons = ["0 19 * * *"]
+
+[vars]
+# CORS で許可するオリジン（COMMON-N-005）。本番のフロントだけ
+CORS_ALLOWED_ORIGINS = ["https://stylus-family.pages.dev"]
+# Supabase の URL（公開してよい値。トークンの発行元と JWKS の場所）。stylus（本番）
+SUPABASE_URL = "https://fihbdlwbdcvkfjrnpkes.supabase.co"
+# Sentry の environment（本番・開発を分けて見る）
+SENTRY_ENVIRONMENT = "production"
+
+# Hyperdrive の設定 stylus（キャッシュ無効、接続先は Supavisor のセッションモード）
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "2c4a6e494351496e8a2c399e2c51be1f"
+
+[env.dev]
+name = "stylus-api-dev"
+
+[env.dev.triggers]
+crons = ["0 19 * * *"]
+
+[env.dev.vars]
+# Pages のプレビュー（* はサブドメイン1階層）とローカルの Vite
+CORS_ALLOWED_ORIGINS = ["https://*.stylus-family.pages.dev", "http://localhost:5173"]
+# Supabase の URL（stylus-dev）
+SUPABASE_URL = "https://ytckpemdmkvnkyewooqb.supabase.co"
+SENTRY_ENVIRONMENT = "development"
+
+[[env.dev.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "d8d17c5944554666b7f8da0ec446cc06"
