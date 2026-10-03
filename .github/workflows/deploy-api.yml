@@ -26,7 +26,8 @@ jobs:
       cancel-in-progress: false
     env:
       # wrangler deploy の --env（本番は付けない）
-      WRANGLER_ENV_FLAG: ${{ github.event_name == 'push' && github.ref_name == 'main' && '' || '--env dev' }}
+      # 式の中の '' は偽として扱われ「a && '' || b」は常に b になるので、空の文字列を最後に置く
+      WRANGLER_ENV_FLAG: ${{ (github.event_name != 'push' || github.ref_name != 'main') && '--env dev' || '' }}
     steps:
       - uses: actions/checkout@v7
 
