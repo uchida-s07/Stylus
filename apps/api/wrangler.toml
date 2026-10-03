@@ -15,10 +15,15 @@ crons = ["0 19 * * *"]
 [vars]
 # CORS で許可するオリジン（COMMON-N-005）。本番のフロントだけ
 CORS_ALLOWED_ORIGINS = ["https://stylus-family.pages.dev"]
-# Supabase の URL（公開してよい値。トークンの発行元と JWKS の場所）。本番の Supabase を作るとき（T-25）に入れる
-# SUPABASE_URL = ""
+# Supabase の URL（公開してよい値。トークンの発行元と JWKS の場所）。stylus（本番）
+SUPABASE_URL = "https://fihbdlwbdcvkfjrnpkes.supabase.co"
 # Sentry の environment（本番・開発を分けて見る）
 SENTRY_ENVIRONMENT = "production"
+
+# Hyperdrive の設定 stylus（キャッシュ無効、接続先は Supavisor のセッションモード）
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "2c4a6e494351496e8a2c399e2c51be1f"
 
 [env.dev]
 name = "stylus-api-dev"
