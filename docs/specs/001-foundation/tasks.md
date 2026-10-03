@@ -274,14 +274,23 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 2026-09-29 のオーナーの判断で、T-25 をこの spec のタスクから外した。本番へのデプロイは `develop` を `main` にマージして動く作り（T-23）のため、spec を閉じて `develop` にマージした後に行う。要件を作る作業ではなく、できたものを配るリリースの作業のため。完了したことにはしていない（review-notes に記録）
 
-- T-25（タスクから外した。未実施）: 本番に出す
+- T-25（タスクから外した。家族のスマホでの確認を残して実施済み）: 本番に出す
   - 対応: design.md「移行計画」6・7
   - 対象ファイル: なし
   - 内容: 先に、T-2 で後回しにした本番側の準備をする（Supabase `stylus` を Tokyo で作り、Auth・API キー・Data API を開発と同じに設定する。Site URL・Redirect URLs は `https://stylus-family.pages.dev`。本番用の Google の OAuth クライアントを作り、同意画面を「テスト中」のまま使うか公開するかを決める。Hyperdrive の本番の設定（キャッシュ無効）を作って `wrangler.toml` の本番に入れる。本番の Supabase の URL を `wrangler.toml` の本番の vars `SUPABASE_URL` に入れる（T-8 で開発だけ入れた）。Pages の本番の環境変数 `VITE_SUPABASE_URL`・`VITE_SUPABASE_PUBLISHABLE_KEY`・`VITE_API_URL` と、GitHub の Environment `production` の `DATABASE_URL` を入れる）→ `develop` を `main` にマージ → `stylus` にマイグレーション・`stylus-api` にデプロイ → 本番に家族4人を登録 → 公開キーで本番の Data API を読めない・書けないことを確かめる → 各自のスマホでログインし、ホーム画面に追加する
   - Red: 対象外（手作業）
   - 完了条件: 家族4人が本番にログインでき、端末のホーム画面から開ける
-
-## AC カバレッジ
+  - 経過（2026-10-03）:
+    - 同意画面は本番も「テスト中」のまま使う（オーナー決定。design.md の T-2 の決めごと）。家族の Google アカウントをテストユーザーに足した
+    - Supabase `stylus`（`https://fihbdlwbdcvkfjrnpkes.supabase.co`、Tokyo）を作った。公開キーで `/auth/v1/settings` を見て、サインアップ無効・ログイン方法は Google だけ、JWKS で署名鍵が ES256（P-256）であることを確かめた
+    - Hyperdrive `stylus`（ID `2c4a6e494351496e8a2c399e2c51be1f`、キャッシュ無効、Supavisor のセッションモード）を作り、`wrangler.toml` の本番に `SUPABASE_URL` とあわせて入れた（uchida-s07/Stylus#4）。DB のパスワードに記号があると `--connection-string` が「Invalid URL」になるので、パスワードは URL 用に変換してつないだ
+    - Pages の本番の環境変数と、GitHub の Environment `production` の `DATABASE_URL` を入れた
+    - develop → main（uchida-s07/Stylus#5）で、マイグレーションは `stylus` に流れたが、API は `stylus-api-dev` にデプロイされた。Deploy API の `WRANGLER_ENV_FLAG` の式（`a && '' || b`）が、`''` を偽として扱うため常に `--env dev` を返していた。直して（uchida-s07/Stylus#6）もう一度 develop → main（uchida-s07/Stylus#7）で流し、`stylus-api` にデプロイされ、Cron `0 19 * * *` が登録された。直す前に `wrangler secret put SENTRY_DSN` で中身の空の `stylus-api` ができていたが、このデプロイで置き換わった（`SENTRY_DSN` は残った）
+    - 本番の `stylus-api`：トークン無しの `GET /me` が 401 `unauthenticated`。CORS は `https://stylus-family.pages.dev` にだけ `Access-Control-Allow-Origin` を返し、プレビューと localhost には返さない
+    - 公開キーで本番の `GET`・`POST /rest/v1/members` と `/graphql/v1` を呼ぶと、何度試しても 503 `PGRST002` で、読めず書けなかった（開発と同じ）
+    - 本番に家族4人を登録した（`auth.users` と突き合わせる1文の INSERT で4行）
+    - せいごが PC で本番にログインできた。直後の3時間で `stylus-api` は6リクエストすべて成功、エラー0（1102 なし）。CPU 時間は中央値 3.7ms、最大 45.5ms（起動直後。review-notes のとおり承知で進めている）
+    - 残り：家族のスマホでのログインとホーム画面への追加（オーナーが後で行う）
 
 | AC | タスク |
 |----|-------|
