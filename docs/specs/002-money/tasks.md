@@ -44,7 +44,7 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
 
 ## 0. 準備と検証
 
-- [ ] T-1: ADR-0007・0008 を書く
+- [x] T-1: ADR-0007・0008 を書く
   - 対応: design.md「残すべき ADR の候補」（2026-10-04 オーナー決定：実装の前に書く）
   - 対象ファイル: `docs/adr/0007-party-as-member-id-with-household-null.md`（請求の当事者を `members` の ID で表し、「家庭」を NULL で表す。代替案：members に1行足す・当事者の表）、`docs/adr/0008-optimistic-locking-with-version.md`（状態の更新を版つきの条件付き更新で行う。代替案：1件の操作も `FOR UPDATE`）。雛形は `docs/adr/0000-template.md`
   - Red: 対象外（文書）

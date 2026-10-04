@@ -108,6 +108,8 @@ erDiagram
 
 ### 当事者（「家庭」）の表し方
 
+[ADR-0007](../../adr/0007-party-as-member-id-with-household-null.md) に判断を残した。
+
 - 当事者は `members.id` で表し、「家庭」は NULL で表す（`from_member_id`・`to_member_id`・`payer_member_id`・`receiver_member_id`）
 - DB の制約で守ること：
   - 両方が NULL にならない（「家庭」から「家庭」は無い）
@@ -142,6 +144,8 @@ erDiagram
 - 差し引き 0円 の精算は、`payer_member_id` に「まとめて払った」を押した側を入れる。受け取る側はもう一方になる
 
 ### 同時の操作
+
+[ADR-0008](../../adr/0008-optimistic-locking-with-version.md) に判断を残した。
 
 - **1件の操作**（直す・払った・差し戻す・受け取った・戻す・取り消す）は、画面が持っている `version` を付けて送る。API は次の順に行う
   1. 請求を読み、関係者でなければ 404（MONEY-N-001）
@@ -211,7 +215,7 @@ erDiagram
 
 ## 残すべき ADR の候補
 
-2つとも ADR に残す（2026-10-04 オーナー決定）。/spec-plan のタスクに ADR-0007・0008 を書く作業を入れ、実装の前に書く。
+2つとも ADR に残した（2026-10-04 オーナー決定。T-1）：[ADR-0007](../../adr/0007-party-as-member-id-with-household-null.md)、[ADR-0008](../../adr/0008-optimistic-locking-with-version.md)。
 
 | 判断 | 理由 |
 |-----|------|
