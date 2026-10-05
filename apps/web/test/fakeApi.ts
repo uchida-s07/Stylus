@@ -14,7 +14,22 @@ export const MOTHER: MeResponse = {
 
 type Handler = (request: Request) => Response | Promise<Response>
 
+// 「GET /bills/:id」のような形のキーにも合わせる（: で始まる部分は何にでも合う）
+function findRoute(routes: Record<string, Handler>, method: string, pathname: string) {
+  const exact = routes[`${method} ${pathname}`]
+  if (exact) return exact
+  const parts = pathname.split('/')
+  for (const [key, handler] of Object.entries(routes)) {
+    const [m, pattern] = key.split(' ')
+    const patternParts = pattern?.split('/') ?? []
+    if (m !== method || patternParts.length !== parts.length) continue
+    if (patternParts.every((p, i) => p.startsWith(':') || p === parts[i])) return handler
+  }
+  return undefined
+}
+
 // API の代わり（テスト用）。fetch を差し替え、届いた要求を記録する
+// routes のキーは「メソッド パス」。パスに :id のような部分を書くと、その部分は何にでも合う
 export function installFakeApi(routes: Record<string, Handler>) {
   const requests: Request[] = []
   vi.stubGlobal(
@@ -24,7 +39,7 @@ export function installFakeApi(routes: Record<string, Handler>) {
       requests.push(request)
       const url = new URL(request.url)
       const handler =
-        url.origin === TEST_API_URL ? routes[`${request.method} ${url.pathname}`] : undefined
+        url.origin === TEST_API_URL ? findRoute(routes, request.method, url.pathname) : undefined
       return handler ? handler(request) : new Response('not found', { status: 404 })
     }),
   )

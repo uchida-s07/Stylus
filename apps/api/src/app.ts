@@ -6,6 +6,10 @@ import { corsMiddleware } from './middleware/cors'
 import { errorHandler } from './middleware/error'
 import { dbMiddleware } from './middleware/db'
 import { memberMiddleware } from './middleware/member'
+import { billCategoriesRoute } from './routes/bill-categories'
+import { billsRoute } from './routes/bills'
+import { membersRoute } from './routes/members'
+import { settlementsRoute } from './routes/settlements'
 import { meRoute } from './routes/me'
 
 export type AppConfig = {
@@ -14,6 +18,8 @@ export type AppConfig = {
   openDb: (env: WorkerBindings) => DbSession
   // 予期しないエラーを知らせる（本番は Sentry）
   reportError: (error: unknown) => void
+  // 今の日時（発生日の上限・経過の日時。テストで差し替える）
+  now: () => Date
 }
 
 // ミドルウェアの順番：CORS → エラー処理 → トークンの検証 → DB → 家族の照合 → 各ルート（design.md「API」）
@@ -28,6 +34,10 @@ export function createApp(config: AppConfig) {
     .use(dbMiddleware(config.openDb))
     .use(memberMiddleware())
     .route('/me', meRoute)
+    .route('/members', membersRoute)
+    .route('/bills', billsRoute(config))
+    .route('/settlements', settlementsRoute(config))
+    .route('/bill-categories', billCategoriesRoute)
 }
 
 // フロントの Hono RPC（hc<AppType>）が import type で使う
