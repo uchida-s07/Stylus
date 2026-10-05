@@ -4,6 +4,7 @@ import { RouteError } from './components/RouteError'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
+import { BillNewPage } from './pages/money/BillNewPage'
 import { MoneyPage } from './pages/money/MoneyPage'
 
 // 画面：ログイン画面（/login）、アプリのホーム（/）、Google から戻る先（/auth/callback）、お金（/money 以下）
@@ -17,6 +18,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: '/', element: <HomePage /> },
           { path: '/money', element: <MoneyPage /> },
+          { path: '/money/bills/new', element: <BillNewPage /> },
         ],
       },
       { element: <RedirectIfSignedIn />, children: [{ path: '/login', element: <LoginPage /> }] },

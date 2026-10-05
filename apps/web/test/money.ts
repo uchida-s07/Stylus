@@ -6,6 +6,7 @@ import type {
   MemberListResponse,
   Party,
 } from '@stylus/shared'
+import type { MeResponse } from '@stylus/shared'
 import { json } from './fakeApi'
 import { fakeSupabase, testSession } from './fakeSupabase'
 
@@ -83,4 +84,23 @@ export function errorResponse(status: number, code: ApiErrorCode, message = 'x',
 // ログイン済みにする
 export function signIn() {
   fakeSupabase.setStoredSession(testSession())
+}
+
+// 自分の情報（GET /me の応答）
+export function meOf(who: FamilyKey): MeResponse {
+  const m = FAMILY[who]
+  return { ...m, isAdmin: who === 'seigo', isCook: who === 'mother' }
+}
+
+// 応答を待たせる（送っている間の画面を確かめるため）。release で応答を返す
+export function deferred(response: () => Response) {
+  let release: () => void = () => {}
+  const gate = new Promise<void>((resolve) => (release = resolve))
+  return {
+    handler: async () => {
+      await gate
+      return response()
+    },
+    release: () => release(),
+  }
 }
