@@ -1,4 +1,4 @@
-import type { BillListResponse, PendingSettlement } from '@stylus/shared'
+import type { BillSummary, BillListResponse, MeResponse, PendingSettlement } from '@stylus/shared'
 import {
   ActionIcon,
   Anchor,
@@ -11,21 +11,55 @@ import {
   Menu,
   SimpleGrid,
   Stack,
+  Tabs,
   Text,
   Title,
 } from '@mantine/core'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { api } from '../../api/client'
 import { callApi } from '../../api/responses'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { BillRow } from './BillRow'
 import { yen } from './format'
-import { useApiLoad } from './useApiLoad'
+import { combineResults, useApiLoad } from './useApiLoad'
 
-// お金の画面（MONEY-F-004）：合計、受け取り待ちの精算、片付いていない請求の一覧
+type Tab = 'pay' | 'receive'
+// 選んだタブを、その端末に覚えておくキー
+const TAB_KEY = 'stylus.money.billTab'
+
+function loadTab(): Tab {
+  try {
+    return localStorage.getItem(TAB_KEY) === 'receive' ? 'receive' : 'pay'
+  } catch {
+    return 'pay'
+  }
+}
+
+function saveTab(tab: Tab) {
+  try {
+    localStorage.setItem(TAB_KEY, tab)
+  } catch {
+    // 覚えられなくても画面は動く
+  }
+}
+
+// 自分が請求する側なら「受け取り」、請求先側なら「支払い」（「家庭」は親なら関係者。見た目のためだけの判定）
+function tabOf(bill: BillSummary, me: MeResponse): Tab {
+  const isMine = (memberId: string | null) => (memberId === null ? me.isParent : memberId === me.id)
+  return isMine(bill.from.memberId) ? 'receive' : 'pay'
+}
+
+// お金の画面（MONEY-F-004）：合計、受け取り待ちの精算、片付いていない請求の一覧（「支払い」「受け取り」のタブ）
 // 片付いた請求（履歴）とカテゴリーの編集へは、右上のメニューから進む（2026-10-05 オーナー決定）
 export function MoneyPage() {
-  const { state } = useApiLoad(() => callApi(() => api.bills.$get({ query: { view: 'open' } })))
+  const [tab, setTab] = useState<Tab>(loadTab)
+  const { state } = useApiLoad(async () =>
+    combineResults([
+      await callApi(() => api.me.$get()),
+      await callApi(() => api.bills.$get({ query: { view: 'open' } })),
+    ]),
+  )
 
   if (state.kind === 'error') return <ErrorScreen kind={state.error} />
   return (
@@ -54,15 +88,24 @@ export function MoneyPage() {
           </Center>
         ) : (
           <>
-            <Totals totals={state.data.totals} />
-            {state.data.pendingSettlements.map((s) => (
+            <Totals totals={state.data[1].totals} />
+            {state.data[1].pendingSettlements.map((s) => (
               <PendingSettlementCard key={s.id} settlement={s} />
             ))}
-            {state.data.bills.length === 0 ? (
-              <Text c="dimmed">請求はありません</Text>
-            ) : (
-              state.data.bills.map((bill) => <BillRow key={bill.id} bill={bill} />)
-            )}
+            <Tabs
+              value={tab}
+              onChange={(value) => {
+                const next: Tab = value === 'receive' ? 'receive' : 'pay'
+                setTab(next)
+                saveTab(next)
+              }}
+            >
+              <Tabs.List grow>
+                <Tabs.Tab value="pay">支払い</Tabs.Tab>
+                <Tabs.Tab value="receive">受け取り</Tabs.Tab>
+              </Tabs.List>
+            </Tabs>
+            <BillList bills={state.data[1].bills.filter((b) => tabOf(b, state.data[0]) === tab)} />
           </>
         )}
       </Stack>
@@ -132,4 +175,9 @@ function PendingSettlementCard({ settlement: s }: { settlement: PendingSettlemen
       </Text>
     </Card>
   )
+}
+
+function BillList({ bills }: { bills: BillSummary[] }) {
+  if (bills.length === 0) return <Text c="dimmed">請求はありません</Text>
+  return bills.map((bill) => <BillRow key={bill.id} bill={bill} />)
 }
