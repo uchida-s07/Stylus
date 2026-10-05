@@ -278,7 +278,9 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
     - stylus-api-dev の `GET /bills`・`/bill-categories`・`/settlements/preview`・`/members` は、トークン無しで 401 `unauthenticated`（ルートが載っている）
     - Pages のプレビュー https://spec-002-money.stylus-family.pages.dev が 200 で開く
     - Data API（開発）：公開キーで新しい4つの表（bills・bill_events・settlements・bill_categories）に `GET`・`POST /rest/v1/<表>` を呼ぶと、どれも 503 `PGRST002` で読めず書けなかった（members と同じ。001 の T-25 の記録と同じ）
-    - 残り：プレビューで、お金のすべての画面（`/money` 以下の7つと `/`・`/login`）を幅 360px・1280px で開く確認と、登録 → 払った → 受け取った、精算 → まとめて払った → まとめて受け取った の一通りの操作（オーナー）。その後に 1102 が出ていないかの確認
+    - 開発に家族を足した（オーナー、2026-10-05）：予備の Google アカウントを「母」（親・料理担当）として登録。開発の members はせいご・母の2人（どちらも Auth の利用者と紐づき、メールアドレスが一致）
+    - オーナーがプレビューで、せいごと母に分かれて一通りの操作を試した。処理はすべて正しく動いた。画面について4点の指摘があった（金額を全角で入れたときの知らせが「入力してください」で原因が分からない、状態のタグが全部同じ色、「片付いた」は履歴として扱いタブで前に出さなくてよい、カテゴリーへ進む場所が不自然）。扱いはオーナーと決める
+    - 1102：Cloudflare の GraphQL（workersInvocationsAdaptive）で過去24時間の stylus-api-dev を見た。235 件すべて success、エラー 0。CPU 時間の中央値は 7.8〜8.2ms（確認の時間帯）。最大 76.2ms は起動直後の呼び出しで、review-notes の既知の件と同じ傾向（止められてはいない）
 
 - [ ] T-33: 本番に出す（管理者の手作業）
   - 対応: design.md「移行計画」
