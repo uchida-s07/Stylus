@@ -8,7 +8,7 @@ import { useLeaveAsUnregistered } from '../../auth/unregistered'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { Loading } from '../../components/Loading'
 import { BillForm } from './BillForm'
-import { fieldErrorsOf, formToInput, type BillFormValues, type SendResult } from './billFormValues'
+import { formErrors, formToInput, type BillFormValues, type SendResult } from './billFormValues'
 import { combineResults, useApiLoad } from './useApiLoad'
 
 // 請求の入力（MONEY-F-001）
@@ -36,7 +36,8 @@ export function BillNewPage() {
       to: values.to || undefined,
       requestId,
     })
-    if (!parsed.success) return { kind: 'fieldErrors', errors: fieldErrorsOf(parsed.error) }
+    const errors = formErrors(parsed, values)
+    if (errors || !parsed.success) return { kind: 'fieldErrors', errors: errors ?? {} }
 
     const result = await callApi(() => api.bills.$post({ json: parsed.data }))
     if (result.kind === 'ok') {

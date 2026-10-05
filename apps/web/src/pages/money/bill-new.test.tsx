@@ -145,6 +145,19 @@ describe('請求の入力の画面（MONEY-F-001）', () => {
     expect(bodies[0].requestId).toBe(bodies[1].requestId)
   })
 
+  it('[MONEY-F-001/AC-19] 金額に全角で「３０００」と入れて「請求する」を押すと、請求は作られず、金額に「半角の数字で入力してください」と出る', async () => {
+    const { requests } = openAsSeigo(() => json(billSummary(), 201))
+    await fillAc1Values()
+    await userEvent.clear(screen.getByLabelText('金額'))
+    await userEvent.type(screen.getByLabelText('金額'), '３０００')
+    await submit()
+
+    expect(screen.getByLabelText('金額')).toHaveAccessibleDescription(
+      '半角の数字で入力してください',
+    )
+    expect(postsOf(requests)).toHaveLength(0)
+  })
+
   // AC ではない確認
   it('登録できたらお金の画面へ戻る。送る中身は入力のとおり', async () => {
     const { requests } = openAsSeigo(() => json(billSummary(), 201))

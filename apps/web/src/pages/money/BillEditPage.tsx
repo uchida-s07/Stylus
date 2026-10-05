@@ -7,7 +7,7 @@ import { useLeaveAsUnregistered } from '../../auth/unregistered'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { Loading } from '../../components/Loading'
 import { BillForm } from './BillForm'
-import { fieldErrorsOf, formToInput, type BillFormValues, type SendResult } from './billFormValues'
+import { formErrors, formToInput, type BillFormValues, type SendResult } from './billFormValues'
 import { BILL_CHANGED } from './format'
 import { NoticeScreen } from './NoticeScreen'
 import { combineResults, useApiLoad } from './useApiLoad'
@@ -43,7 +43,8 @@ export function BillEditPage() {
       ...formToInput(values),
       version: bill.version,
     })
-    if (!parsed.success) return { kind: 'fieldErrors', errors: fieldErrorsOf(parsed.error) }
+    const errors = formErrors(parsed, values)
+    if (errors || !parsed.success) return { kind: 'fieldErrors', errors: errors ?? {} }
 
     const result = await callApi(() =>
       api.bills[':id'].$patch({ param: { id: bill.id }, json: parsed.data }),
