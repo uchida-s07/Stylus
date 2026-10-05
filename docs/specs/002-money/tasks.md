@@ -89,11 +89,11 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
   - Red: 2026-10-05 実行。中身の無いルート（一覧は空、追加・削除は 200 で何もしない）で 10件失敗：F-013/AC-1 は追加が 201 でなく 200、AC-2 は一覧が `[]`、AC-3・AC-5 は一覧に5つ無い（入力の検証は中身の無い形にも置いたので 400 は通っていた）、AC-4 は 409 でなく 200、F-014/AC-1・AC-5 は削除が 204 でなく 200、AC-2・AC-4 は 409 `in_use` でなく 200
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
-- [ ] T-6: 請求の登録と一覧の基本・家族の一覧
+- [x] T-6: 請求の登録と一覧の基本・家族の一覧
   - 対応: MONEY-F-001 / AC-1, AC-2、MONEY-N-001 / AC-3
   - 対象ファイル: `apps/api/src/money/parties.ts`（当事者・関係者・側の判定、一覧の WHERE）、`apps/api/src/money/parties.test.ts`、`apps/api/src/routes/bills.ts`、`apps/api/src/routes/bills.test.ts`、`apps/api/src/routes/members.ts`（`GET /members`：`id`・`displayName`・`isParent` だけ）、`apps/api/src/routes/members.test.ts`（AC なし。メールアドレスを返さないこと）、`apps/api/src/app.ts`
   - 内容: `POST /bills`（請求中で保存し、経過 `created` を足す）、`GET /bills?view=open`（関係する請求の行だけ。合計は T-9）。`:id` は uuid の形で検証する
-  - Red: 未記録（想定：中身の無いルートで、AC-1 の母の一覧に請求が無い、AC-2 の父の一覧に「家庭」の請求が無い、N-001/AC-3 の父の一覧に せいご→家庭 が無い）
+  - Red: 2026-10-05 実行。中身の無いルート（登録は 201 で `{}` を返し何も保存しない、一覧は空、家族の一覧も空）で 5件失敗：F-001/AC-1・AC-2・N-001/AC-3 は登録の応答に請求が無い（`{}` が請求の形に合わない ZodError。保存されないので一覧にも出ない）、`GET /members` は家族の一覧が `[]`。`AppConfig.now` はこのタスクで足した（発生日の上限に要るため。T-7 の予定を前倒し）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
 - [ ] T-7: 請求の登録の入力の検証

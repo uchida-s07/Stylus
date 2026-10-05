@@ -37,7 +37,11 @@ export type Family = Record<FamilyKey, Member>
 
 // 4人を登録し、登録した行を返す
 export async function seedFamily(db: TestDb['db']): Promise<Family> {
-  const rows = await db.insert(members).values(Object.values(FAMILY)).returning()
+  // 1人ずつ登録する（登録の日時がこの順に並ぶ）
+  const rows: Member[] = []
+  for (const values of Object.values(FAMILY)) {
+    rows.push(...(await db.insert(members).values(values).returning()))
+  }
   const byEmail = (email: string) => {
     const row = rows.find((r) => r.email === email)
     if (!row) throw new Error(`${email} が登録されていない`)

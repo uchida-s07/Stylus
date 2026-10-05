@@ -12,6 +12,7 @@ export function testAppConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       throw new Error('このテストでは DB を使わない')
     },
     reportError: () => {},
+    now: () => new Date(),
     ...overrides,
   }
 }
