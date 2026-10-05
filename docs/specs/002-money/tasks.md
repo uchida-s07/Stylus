@@ -198,11 +198,12 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
 
 ## 4. 画面
 
-- [ ] T-22: 押せる部分の大きさの数値の条件を外す（COMMON-N-008 の変更）
+- [x] T-22: 押せる部分の大きさの数値の条件を外す（COMMON-N-008 の変更）
   - 対応: COMMON-N-008（変更。受入基準なし）、spec「3. 変更差分」画面の `/`・`/login`
   - 対象ファイル: `apps/web/src/app/theme.ts`（ボタンの標準の大きさ `lg` を外す）、`apps/web/src/app/tap-targets.test.tsx`（削除）、`apps/web/src/components/LogoutConfirm.tsx`（×を出さない理由のコメントを「『キャンセル』があるので要らない」に直す）
   - Red: 対象外（要件の変更で数値の条件を外す。テストの削除）
   - 完了条件: テスト全体が通る。ログアウトの確認に×が出ないこと（既存の AUTH-F-004 のテスト）は変わらず通る
+  - 結果: ×が出ないことを確かめていたのは削除した tap-targets のテストだけだったので、`apps/web/src/pages/logout.test.tsx` にタグなしのテスト（確認のボタンは「キャンセル」「ログアウト」の2つだけ）を移した
 
 - [ ] T-23: 403 は `not_a_member` のときだけ未登録として扱う
   - 対応: spec「3. 変更差分」画面の 403 の扱い（AC なし。architecture.md の規約とコードを揃える）
