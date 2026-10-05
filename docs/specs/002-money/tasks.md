@@ -59,7 +59,7 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
 
 ## 1. DB
 
-- [ ] T-3: お金の表を足すマイグレーション
+- [x] T-3: お金の表を足すマイグレーション
   - 対応: spec「3. 変更差分」DB、design.md「データモデル」「当事者（『家庭』）の表し方」、COMMON-N-003（既存の `rls.test.ts` が新しい表も見る）、MONEY-F-013（最初の5つのカテゴリー）
   - 対象ファイル: `apps/api/src/db/schema.ts`、`apps/api/drizzle/0003_*.sql`（drizzle-kit で作る。カテゴリー5つの投入は同じマイグレーションに手で足す）、`apps/api/src/db/money.test.ts`（制約の確認。AC なし）
   - 内容:
