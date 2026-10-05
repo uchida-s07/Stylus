@@ -71,5 +71,12 @@ export function billsRoute(config: Pick<AppConfig, 'now'>) {
         const now = config.now()
         return c.json(await operateBill(c.var.db, c.var.member, id, 'cancel', { version, now }))
       })
+      // 受け取った（MONEY-F-007）
+      .post('/:id/confirm', idParam(BILL_NOT_FOUND), jsonBody(billActionInputSchema), async (c) => {
+        const { id } = c.req.valid('param')
+        const { version } = c.req.valid('json')
+        const now = config.now()
+        return c.json(await operateBill(c.var.db, c.var.member, id, 'confirm', { version, now }))
+      })
   )
 }

@@ -735,4 +735,63 @@ describe('請求の API', () => {
       expect((await billRow(bill.id)).status).toBe('canceled')
     })
   })
+
+  describe('受け取った（MONEY-F-007）', () => {
+    const confirm = (who: FamilyKey, id: string, version = 1) =>
+      t.call(who, 'POST', `/bills/${id}/confirm`, { version })
+
+    it('[MONEY-F-007/AC-1] 1件ずつ払われた せいご→母 の支払済の請求を、せいごが「受け取った」にすると、確認済になり「片付いた」側に出る', async () => {
+      const bill = await t.insertBill({ status: 'paid' })
+      const res = await confirm('seigo', bill.id)
+      expect(res.status).toBe(200)
+      expect(billDetailSchema.parse(await res.json()).status).toBe('confirmed')
+      expect((await list('seigo', 'closed')).bills.map((b) => b.id)).toEqual([bill.id])
+      expect((await list('seigo', 'open')).bills).toEqual([])
+    })
+
+    it('[MONEY-F-007/AC-2] 請求中の請求に「受け取った」の API を呼ぶと、受け取れず請求中のまま', async () => {
+      const bill = await t.insertBill()
+      await expectError(await confirm('seigo', bill.id), 409, 'state_changed')
+      expect((await billRow(bill.id)).status).toBe('requested')
+    })
+
+    it('[MONEY-F-007/AC-3] 母（請求先）が「受け取った」の API を呼ぶと、403 で支払済のまま', async () => {
+      const bill = await t.insertBill({ status: 'paid' })
+      await expectError(await confirm('mother', bill.id), 403, 'forbidden')
+      expect((await billRow(bill.id)).status).toBe('paid')
+    })
+
+    it('[MONEY-F-007/AC-5] 母が登録した 家庭→くうご の支払済の請求を、父が「受け取った」にすると、確認済になり、経過に「受け取った（父）」が残る', async () => {
+      const bill = await t.insertBill({
+        fromMemberId: null,
+        toMemberId: t.family.kugo.id,
+        status: 'paid',
+      })
+      const res = await confirm('father', bill.id)
+      expect(res.status).toBe(200)
+      const d = billDetailSchema.parse(await res.json())
+      expect(d.status).toBe('confirmed')
+      expect(eventKinds(d)).toEqual(['confirmed（父）'])
+    })
+
+    it('[MONEY-F-005/AC-1] せいごが 10/1 10:00 に登録し、母が 10/2 20:00 に「払った」、せいごが 10/3 08:00 に「受け取った」にした請求の経過が、この順に日時とともに出る', async () => {
+      now = new Date('2026-10-01T01:00:00Z') // 日本時間 10/1 10:00
+      const created = await createBill('seigo', {
+        to: t.family.mother.id,
+        occurredOn: '2026-10-01',
+      })
+      const { id } = billSummarySchema.parse(await created.json())
+      now = new Date('2026-10-02T11:00:00Z') // 10/2 20:00
+      expect((await t.call('mother', 'POST', `/bills/${id}/pay`, { version: 1 })).status).toBe(200)
+      now = new Date('2026-10-02T23:00:00Z') // 10/3 08:00
+      expect((await confirm('seigo', id, 2)).status).toBe(200)
+
+      const d = await detail('seigo', id)
+      expect(d.events.map((e) => [e.kind, e.actorName, e.createdAt])).toEqual([
+        ['created', 'せいご', '2026-10-01T01:00:00.000Z'],
+        ['paid', '母', '2026-10-02T11:00:00.000Z'],
+        ['confirmed', 'せいご', '2026-10-02T23:00:00.000Z'],
+      ])
+    })
+  })
 })
