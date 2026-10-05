@@ -305,4 +305,64 @@ describe('精算の API', () => {
       ])
     })
   })
+
+  // テストの中で、請求の更新を n 件目で失敗させる（本物のトランザクションが巻き戻ることを見る）
+  async function failBillUpdateAt(n: number) {
+    await t.client.exec(`
+      create sequence bill_update_count;
+      create function fail_bill_update() returns trigger language plpgsql as $$
+      begin
+        if nextval('bill_update_count') = ${n} then raise exception 'bill update failed'; end if;
+        return new;
+      end $$;
+      create trigger fail_bill_update before update on bills for each row execute function fail_bill_update();
+    `)
+  }
+
+  describe('まとめて払ったの競合と失敗（MONEY-F-011）', () => {
+    it('[MONEY-F-011/AC-4] 母が精算を開いた後に、せいごが せいご→母 1,000円 を新しく請求していたら、どの請求も変わらず 409 で、精算額は「母がせいごに 3,500円」になる', async () => {
+      const given = await f010ac1Bills()
+      const p = await previewOk('mother', 'seigo')
+      const added = await bill('seigo', 'mother', 1000)
+
+      await expectError(await payAll('mother', 'seigo', p), 409, 'state_changed')
+      for (const b of [...given.requested, added]) expect(await statusOf(b.id)).toBe('requested')
+      expect(await countSettlements()).toBe(0)
+      expect(await previewOk('mother', 'seigo')).toMatchObject({ amount: 3500, payer: 'self' })
+    })
+
+    it('[MONEY-F-011/AC-7] 3件を支払済にする途中で保存に失敗すると、3件とも請求中のままで、精算は作られない', async () => {
+      const given = await f010ac1Bills()
+      const p = await previewOk('mother', 'seigo')
+      await failBillUpdateAt(2)
+
+      const res = await payAll('mother', 'seigo', p)
+      expect(res.status).toBe(500)
+      for (const b of given.requested) expect(await statusOf(b.id)).toBe('requested')
+      expect(await countSettlements()).toBe(0)
+    })
+
+    // AC ではない確認（design.md「同時の操作」の手順2・3）
+    it('見ていた請求の版が古い（開いた後に直された）と 409', async () => {
+      const given = await f010ac1Bills()
+      const p = await previewOk('mother', 'seigo')
+      await t.db
+        .update(bills)
+        .set({ amount: 3100, version: 2 })
+        .where(eq(bills.id, given.requested[0]!.id))
+      await expectError(await payAll('mother', 'seigo', p), 409, 'state_changed')
+      expect(await countSettlements()).toBe(0)
+    })
+
+    it('精算額が見ていたものと違うと 409', async () => {
+      await f010ac1Bills()
+      const p = await previewOk('mother', 'seigo')
+      await expectError(
+        await payAll('mother', 'seigo', { ...p, amount: 2000 }),
+        409,
+        'state_changed',
+      )
+      expect(await countSettlements()).toBe(0)
+    })
+  })
 })
