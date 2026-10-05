@@ -16,6 +16,7 @@ export async function createBill(
   db: Db,
   member: Member,
   input: BillCreateInput,
+  now: Date,
 ): Promise<BillSummary> {
   if (input.as === 'household' && !member.isParent) {
     fail(403, 'forbidden', '「家庭」として請求できるのは親だけです')
@@ -26,7 +27,7 @@ export async function createBill(
   await checkCategory(db, input.categoryId)
 
   try {
-    return await insertBill(db, member, input, fromMemberId, toMemberId)
+    return await insertBill(db, member, input, fromMemberId, toMemberId, now)
   } catch (error) {
     const code = pgErrorCode(error)
     // 判定の後、登録の直前にカテゴリーが削除された（MONEY-F-001/AC-11）
@@ -108,6 +109,7 @@ async function insertBill(
   input: BillCreateInput,
   fromMemberId: string | null,
   toMemberId: string | null,
+  now: Date,
 ): Promise<BillSummary> {
   const id = await db.transaction(async (tx) => {
     const [bill] = await tx
@@ -125,7 +127,9 @@ async function insertBill(
       })
       .returning({ id: bills.id })
     const billId = (bill as { id: string }).id
-    await tx.insert(billEvents).values({ billId, kind: 'created', actorMemberId: member.id })
+    await tx
+      .insert(billEvents)
+      .values({ billId, kind: 'created', actorMemberId: member.id, createdAt: now })
     return billId
   })
   return loadBillSummary(db, id)

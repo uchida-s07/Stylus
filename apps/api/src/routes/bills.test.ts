@@ -1,6 +1,7 @@
 import {
   apiErrorSchema,
   billListResponseSchema,
+  billDetailSchema,
   billSummarySchema,
   type BillInput,
 } from '@stylus/shared'
@@ -400,6 +401,77 @@ describe('請求の API', () => {
     it('view が open・closed のどちらでもなければ 400', async () => {
       const res = await t.call('seigo', 'GET', '/bills?view=all')
       await expectError(res, 400, 'invalid_input')
+    })
+  })
+
+  describe('請求の中身と、関係者でなければ 404', () => {
+    it('[MONEY-F-005/AC-4] 存在しない請求の ID を開くと 404 not_found', async () => {
+      const res = await t.call('seigo', 'GET', `/bills/${crypto.randomUUID()}`)
+      const error = await expectError(res, 404, 'not_found')
+      expect(error.message).toBe('この請求は見つかりません')
+    })
+
+    it('[MONEY-N-001/AC-1] せいご→母 の請求の中身を、くうごが呼ぶと 404', async () => {
+      const bill = await t.insertBill()
+      await expectError(await t.call('kugo', 'GET', `/bills/${bill.id}`), 404, 'not_found')
+    })
+
+    it('[MONEY-N-001/AC-2] 母→父 の請求の中身を、管理者のせいごが呼ぶと 404', async () => {
+      const bill = await t.insertBill({
+        fromMemberId: t.family.mother.id,
+        toMemberId: t.family.father.id,
+      })
+      await expectError(await t.call('seigo', 'GET', `/bills/${bill.id}`), 404, 'not_found')
+    })
+
+    it('[MONEY-N-001/AC-4] せいご→母 の請求中の請求に、くうごが「払った」「差し戻す」「直す」「取り消す」を呼ぶと、どれも 404 で請求は変わらない', async () => {
+      const bill = await t.insertBill()
+      const calls: [string, string, unknown][] = [
+        ['POST', `/bills/${bill.id}/pay`, { version: 1 }],
+        ['POST', `/bills/${bill.id}/return`, { version: 1, reason: '金額が違う' }],
+        [
+          'PATCH',
+          `/bills/${bill.id}`,
+          {
+            version: 1,
+            amount: 1,
+            categoryId: bill.categoryId,
+            title: 'x',
+            occurredOn: '2026-10-04',
+          },
+        ],
+        ['POST', `/bills/${bill.id}/cancel`, { version: 1 }],
+      ]
+      for (const [method, path, body] of calls) {
+        await expectError(await t.call('kugo', method, path, body), 404, 'not_found')
+      }
+      const [row] = await t.db.select().from(bills).where(eq(bills.id, bill.id))
+      expect(row).toMatchObject({ status: 'requested', version: 1, amount: 3000 })
+    })
+
+    // AC ではない確認
+    it('中身には請求の項目・メモ・経過・自分の側が入る。「家庭」宛ては親なら請求先側', async () => {
+      const res = await createBill('seigo', { to: 'household', memo: '保険証あり' })
+      const { id } = billSummarySchema.parse(await res.json())
+
+      const detail = billDetailSchema.parse(
+        await (await t.call('father', 'GET', `/bills/${id}`)).json(),
+      )
+      expect(detail).toMatchObject({
+        id,
+        from: { name: 'せいご' },
+        to: { memberId: null, name: '家庭' },
+        memo: '保険証あり',
+        status: 'requested',
+        version: 1,
+        sides: ['to'],
+        events: [{ kind: 'created', actorName: 'せいご', reason: null, settlement: null }],
+      })
+      expect(detail.events[0]?.createdAt).toBe(NOW.toISOString())
+    })
+
+    it('ID が uuid の形でなければ 404 not_found', async () => {
+      await expectError(await t.call('seigo', 'GET', '/bills/abc'), 404, 'not_found')
     })
   })
 })
