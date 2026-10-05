@@ -2,13 +2,14 @@ import {
   billActionInputSchema,
   billListQuerySchema,
   billReturnInputSchema,
+  createBillEditSchema,
   createBillInputSchema,
   toJstDate,
 } from '@stylus/shared'
 import { Hono } from 'hono'
 import type { AppConfig } from '../app'
 import type { AppHono } from '../env'
-import { createBill } from '../money/bills'
+import { createBill, editBill } from '../money/bills'
 import { listBills } from '../money/list'
 import { BILL_NOT_FOUND, loadBillDetail, loadRelatedBill } from '../money/load'
 import { operateBill } from '../money/operate'
@@ -36,11 +37,17 @@ export function billsRoute(config: Pick<AppConfig, 'now'>) {
         const { id } = c.req.valid('param')
         return c.json(await loadBillDetail(c.var.db, c.var.member, id))
       })
-      // 操作は、関係者でなければ 404 まで（中身は後のタスクで足す）
-      .patch('/:id', idParam(BILL_NOT_FOUND), async (c) => {
-        await loadRelatedBill(c.var.db, c.var.member, c.req.valid('param').id)
-        return c.json({}, 200)
-      })
+      // 直す・出し直す（MONEY-F-002）
+      .patch(
+        '/:id',
+        idParam(BILL_NOT_FOUND),
+        jsonBody(() => createBillEditSchema(today())),
+        async (c) => {
+          const { id } = c.req.valid('param')
+          const bill = await editBill(c.var.db, c.var.member, id, c.req.valid('json'), config.now())
+          return c.json(bill)
+        },
+      )
       // 払った（MONEY-F-006）
       .post('/:id/pay', idParam(BILL_NOT_FOUND), jsonBody(billActionInputSchema), async (c) => {
         const { id } = c.req.valid('param')

@@ -1,4 +1,10 @@
-import { MONEY_MESSAGES, type BillSummary, type createBillInputSchema } from '@stylus/shared'
+import {
+  MONEY_MESSAGES,
+  type BillDetail,
+  type BillSummary,
+  type createBillEditSchema,
+  type createBillInputSchema,
+} from '@stylus/shared'
 import { and, eq } from 'drizzle-orm'
 import type { z } from 'zod'
 import type { Db } from '../db/client'
@@ -6,9 +12,11 @@ import { billCategories, billEvents, bills, members } from '../db/schema'
 import type { Member } from '../env'
 import { fail, failInput } from '../errors'
 import { PG, pgErrorCode } from '../validate'
+import { operateBill } from './operate'
 import { selectBillRows, toBillSummary, type Executor } from './summaries'
 
 export type BillCreateInput = z.output<ReturnType<typeof createBillInputSchema>>
+export type BillEditInput = z.output<ReturnType<typeof createBillEditSchema>>
 
 // 請求を登録する（MONEY-F-001）。請求中で保存し、経過「登録」を足す
 // 判定の順（tasks.md D-2）：形の検証（ルートの jsonBody で 400）→ 名義の権限（403）→ 組み合わせ・相手の実在（400）
@@ -139,4 +147,24 @@ export async function loadBillSummary(db: Executor, id: string): Promise<BillSum
   const [row] = await selectBillRows(db).where(eq(bills.id, id))
   if (!row) throw new Error(`請求 ${id} が無い`)
   return toBillSummary(row)
+}
+
+// 直す・出し直す（MONEY-F-002）。請求する側・請求先は直せない（入力に含めない）
+export async function editBill(
+  db: Db,
+  member: Member,
+  id: string,
+  input: BillEditInput,
+  now: Date,
+): Promise<BillDetail> {
+  const { version, ...changes } = input
+  await checkCategory(db, changes.categoryId)
+  try {
+    return await operateBill(db, member, id, 'edit', { version, now, changes })
+  } catch (error) {
+    if (pgErrorCode(error) === PG.FOREIGN_KEY_VIOLATION) {
+      failInput({ categoryId: MONEY_MESSAGES.categoryNotFound })
+    }
+    throw error
+  }
 }

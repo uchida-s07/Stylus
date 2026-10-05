@@ -607,4 +607,91 @@ describe('請求の API', () => {
       expect(d.events).toMatchObject([{ kind: 'returned', actorName: '母', reason: '金額が違う' }])
     })
   })
+
+  describe('直す・出し直す（MONEY-F-002）', () => {
+    async function edit(
+      who: FamilyKey,
+      bill: { id: string; categoryId: string },
+      changes: Record<string, unknown> = {},
+    ) {
+      return t.call(who, 'PATCH', `/bills/${bill.id}`, {
+        version: 1,
+        amount: 3000,
+        categoryId: bill.categoryId,
+        title: '歯医者',
+        occurredOn: '2026-10-04',
+        ...changes,
+      })
+    }
+
+    it('[MONEY-F-002/AC-1] せいごが 3,000円 を 2,500 に直して保存すると、2,500円・請求中のままで、経過に「直した（せいご）」が残る', async () => {
+      const bill = await t.insertBill({ amount: 3000 })
+      const res = await edit('seigo', bill, { amount: 2500 })
+      expect(res.status).toBe(200)
+      const d = billDetailSchema.parse(await res.json())
+      expect(d).toMatchObject({ amount: 2500, status: 'requested', version: 2 })
+      expect(eventKinds(d)).toEqual(['edited（せいご）'])
+    })
+
+    it('[MONEY-F-002/AC-2] 差し戻された請求の件名を直して「出し直す」と、請求中に戻り、経過に「出し直した」が残り、母の一覧で請求中として出る', async () => {
+      const bill = await t.insertBill({ status: 'returned' })
+      const res = await edit('seigo', bill, { title: '歯医者（10月分）' })
+      expect(res.status).toBe(200)
+      const d = billDetailSchema.parse(await res.json())
+      expect(d).toMatchObject({ status: 'requested', title: '歯医者（10月分）' })
+      expect(eventKinds(d)).toEqual(['resubmitted（せいご）'])
+      expect((await list('mother')).bills.find((b) => b.id === bill.id)?.status).toBe('requested')
+    })
+
+    it('[MONEY-F-002/AC-3] 支払済の請求は直せず、変わらない', async () => {
+      const bill = await t.insertBill({ status: 'paid' })
+      await expectError(await edit('seigo', bill, { amount: 2500 }), 409, 'state_changed')
+      expect(await billRow(bill.id)).toMatchObject({ status: 'paid', amount: 3000, version: 1 })
+    })
+
+    it('[MONEY-F-002/AC-4] 母（請求先）が直す API を呼ぶと、403 で請求は変わらない', async () => {
+      const bill = await t.insertBill()
+      await expectError(await edit('mother', bill, { amount: 100 }), 403, 'forbidden')
+      expect(await billRow(bill.id)).toMatchObject({ amount: 3000, version: 1 })
+    })
+
+    it('[MONEY-F-002/AC-5] せいごが直す画面を開いている間に母が「払った」にしていたら、保存は 409 で金額などは変わらない', async () => {
+      const bill = await t.insertBill()
+      expect((await t.call('mother', 'POST', `/bills/${bill.id}/pay`, { version: 1 })).status).toBe(
+        200,
+      )
+      await expectError(await edit('seigo', bill, { amount: 2500 }), 409, 'state_changed')
+      expect(await billRow(bill.id)).toMatchObject({ status: 'paid', amount: 3000 })
+    })
+
+    it('[MONEY-F-002/AC-6] 母が登録した 家庭→くうご の請求を、父が直すと保存され、経過に「直した（父）」が残る', async () => {
+      const bill = await t.insertBill({ fromMemberId: null, toMemberId: t.family.kugo.id })
+      const res = await edit('father', bill, { amount: 4000 })
+      expect(res.status).toBe(200)
+      expect(eventKinds(billDetailSchema.parse(await res.json()))).toEqual(['edited（父）'])
+    })
+
+    it('[MONEY-F-002/AC-7] 件名を空白だけにして保存すると、保存されず件名は「歯医者」のまま', async () => {
+      const bill = await t.insertBill()
+      await expectError(await edit('seigo', bill, { title: '　' }), 400, 'invalid_input')
+      expect((await billRow(bill.id)).title).toBe('歯医者')
+    })
+
+    it('[MONEY-F-002/AC-8] 金額を 0 に直して保存すると、保存されず 3,000円 のまま', async () => {
+      const bill = await t.insertBill()
+      await expectError(await edit('seigo', bill, { amount: 0 }), 400, 'invalid_input')
+      expect((await billRow(bill.id)).amount).toBe(3000)
+    })
+
+    // AC ではない確認
+    it('削除されたカテゴリーに直すと 400（「カテゴリーが見つかりません。選び直してください」）', async () => {
+      const bill = await t.insertBill()
+      const error = await expectError(
+        await edit('seigo', bill, { categoryId: crypto.randomUUID() }),
+        400,
+        'invalid_input',
+      )
+      expect(error.fields?.categoryId).toBe('カテゴリーが見つかりません。選び直してください')
+    })
+  })
 })
