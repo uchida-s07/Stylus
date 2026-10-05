@@ -78,5 +78,12 @@ export function billsRoute(config: Pick<AppConfig, 'now'>) {
         const now = config.now()
         return c.json(await operateBill(c.var.db, c.var.member, id, 'confirm', { version, now }))
       })
+      // 支払済を請求中へ戻す（MONEY-F-009）。請求先側なら「払ったを取り消した」、請求する側なら「受け取っていない」
+      .post('/:id/revert', idParam(BILL_NOT_FOUND), jsonBody(billActionInputSchema), async (c) => {
+        const { id } = c.req.valid('param')
+        const { version } = c.req.valid('json')
+        const now = config.now()
+        return c.json(await operateBill(c.var.db, c.var.member, id, 'revert', { version, now }))
+      })
   )
 }

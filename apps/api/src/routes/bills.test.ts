@@ -794,4 +794,43 @@ describe('請求の API', () => {
       ])
     })
   })
+
+  describe('支払済を請求中へ戻す（MONEY-F-009、1件ずつ）', () => {
+    const revert = (who: FamilyKey, id: string, version = 2) =>
+      t.call(who, 'POST', `/bills/${id}/revert`, { version })
+
+    // 母が「払った」にした せいご→母 3,000円（版 2）
+    async function paidByMother() {
+      const bill = await t.insertBill({ amount: 3000 })
+      expect((await t.call('mother', 'POST', `/bills/${bill.id}/pay`, { version: 1 })).status).toBe(
+        200,
+      )
+      return bill
+    }
+
+    it('[MONEY-F-009/AC-1] 母が「払ったを取り消す」を選ぶと、請求中に戻り、母の「払う額の合計」に戻り、経過に「払ったを取り消した（母）」が残る', async () => {
+      const bill = await paidByMother()
+      const res = await revert('mother', bill.id)
+      expect(res.status).toBe(200)
+      const d = billDetailSchema.parse(await res.json())
+      expect(d.status).toBe('requested')
+      expect(eventKinds(d)).toEqual(['paid（母）', 'payment_canceled（母）'])
+      expect((await list('mother')).totals.self.pay).toBe(3000)
+    })
+
+    it('[MONEY-F-009/AC-2] せいごが「受け取っていない」を選ぶと、請求中に戻り、経過に「受け取っていない（せいご）」が残る', async () => {
+      const bill = await paidByMother()
+      const res = await revert('seigo', bill.id)
+      expect(res.status).toBe(200)
+      const d = billDetailSchema.parse(await res.json())
+      expect(d.status).toBe('requested')
+      expect(eventKinds(d)).toEqual(['paid（母）', 'not_received（せいご）'])
+    })
+
+    it('[MONEY-F-009/AC-4] 確認済の請求に「受け取っていない」の API を呼ぶと、戻せず確認済のまま', async () => {
+      const bill = await t.insertBill({ status: 'confirmed' })
+      await expectError(await revert('seigo', bill.id, 1), 409, 'state_changed')
+      expect((await billRow(bill.id)).status).toBe('confirmed')
+    })
+  })
 })
