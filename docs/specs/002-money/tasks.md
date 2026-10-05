@@ -273,6 +273,12 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
   - 内容: develop へのマージで開発の DB へのマイグレーションと stylus-api-dev のデプロイが流れたことを確かめる。Pages のプレビューで、お金のすべての画面（`/money` 以下の7つと、変えた `/`・`/login`）を幅 360px と 1280px で開き、横スクロールが出ず、すべての操作ができることを確かめる。登録 → 払った → 受け取った、精算 → まとめて払った → まとめて受け取った、を一通り通す。公開キーで Data API を呼び、新しい4つの表を読めない・書けないことを確かめる。Workers のダッシュボード（または `wrangler tail`）で 1102 が出ていないことを確かめる
   - Red: 対象外（手動の確認）
   - 完了条件: すべての確認が済み、結果が書かれている
+  - 結果（2026-10-05、途中）:
+    - develop へのマージの前に、spec/002-money を push し、Deploy API を手動で実行して開発に流した（run 37292158691）。stylus-dev へのマイグレーション（0003）と stylus-api-dev へのデプロイが成功した
+    - stylus-api-dev の `GET /bills`・`/bill-categories`・`/settlements/preview`・`/members` は、トークン無しで 401 `unauthenticated`（ルートが載っている）
+    - Pages のプレビュー https://spec-002-money.stylus-family.pages.dev が 200 で開く
+    - Data API（開発）：公開キーで新しい4つの表（bills・bill_events・settlements・bill_categories）に `GET`・`POST /rest/v1/<表>` を呼ぶと、どれも 503 `PGRST002` で読めず書けなかった（members と同じ。001 の T-25 の記録と同じ）
+    - 残り：プレビューで、お金のすべての画面（`/money` 以下の7つと `/`・`/login`）を幅 360px・1280px で開く確認と、登録 → 払った → 受け取った、精算 → まとめて払った → まとめて受け取った の一通りの操作（オーナー）。その後に 1102 が出ていないかの確認
 
 - [ ] T-33: 本番に出す（管理者の手作業）
   - 対応: design.md「移行計画」
