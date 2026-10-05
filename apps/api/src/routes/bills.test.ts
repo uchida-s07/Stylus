@@ -554,4 +554,57 @@ describe('請求の API', () => {
       )
     })
   })
+
+  describe('差し戻す（MONEY-F-008）', () => {
+    const giveBack = (who: FamilyKey, id: string, reason: string, version = 1) =>
+      t.call(who, 'POST', `/bills/${id}/return`, { version, reason })
+
+    it('[MONEY-F-008/AC-1] 母が理由「金額が違う」で差し戻すと、差し戻しになり、せいごの一覧で差し戻しと出て、母の「払う額の合計」から外れる', async () => {
+      const bill = await t.insertBill({ amount: 3000 })
+      const res = await giveBack('mother', bill.id, '金額が違う')
+      expect(res.status).toBe(200)
+      expect(billDetailSchema.parse(await res.json()).status).toBe('returned')
+
+      const seigo = await list('seigo')
+      expect(seigo.bills.find((b) => b.id === bill.id)?.status).toBe('returned')
+      expect((await list('mother')).totals.self.pay).toBe(0)
+    })
+
+    it('[MONEY-F-008/AC-2] 理由が空白だけなら、請求中のままで「理由を入力してください」', async () => {
+      const bill = await t.insertBill()
+      const error = await expectError(
+        await giveBack('mother', bill.id, '　 '),
+        400,
+        'invalid_input',
+      )
+      expect(error.fields?.reason).toBe('理由を入力してください')
+      expect((await billRow(bill.id)).status).toBe('requested')
+    })
+
+    it('[MONEY-F-008/AC-3] 201文字の理由では請求中のまま', async () => {
+      const bill = await t.insertBill()
+      await expectError(await giveBack('mother', bill.id, 'あ'.repeat(201)), 400, 'invalid_input')
+      expect((await billRow(bill.id)).status).toBe('requested')
+    })
+
+    it('[MONEY-F-008/AC-4] 支払済の請求を差し戻す API を呼ぶと、差し戻せず支払済のまま', async () => {
+      const bill = await t.insertBill({ status: 'paid' })
+      await expectError(await giveBack('mother', bill.id, '金額が違う'), 409, 'state_changed')
+      expect((await billRow(bill.id)).status).toBe('paid')
+    })
+
+    it('[MONEY-F-008/AC-5] せいご（請求する側）が差し戻す API を呼ぶと、403 で請求中のまま', async () => {
+      const bill = await t.insertBill()
+      await expectError(await giveBack('seigo', bill.id, '金額が違う'), 403, 'forbidden')
+      expect((await billRow(bill.id)).status).toBe('requested')
+    })
+
+    it('[MONEY-F-005/AC-3] 母が理由「金額が違う」で差し戻した請求を、せいごが開くと、差し戻しで、経過に「差し戻した（母）：金額が違う」と出る', async () => {
+      const bill = await t.insertBill()
+      expect((await giveBack('mother', bill.id, '金額が違う')).status).toBe(200)
+      const d = await detail('seigo', bill.id)
+      expect(d.status).toBe('returned')
+      expect(d.events).toMatchObject([{ kind: 'returned', actorName: '母', reason: '金額が違う' }])
+    })
+  })
 })

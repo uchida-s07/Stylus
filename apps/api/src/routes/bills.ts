@@ -1,6 +1,7 @@
 import {
   billActionInputSchema,
   billListQuerySchema,
+  billReturnInputSchema,
   createBillInputSchema,
   toJstDate,
 } from '@stylus/shared'
@@ -47,9 +48,14 @@ export function billsRoute(config: Pick<AppConfig, 'now'>) {
         const now = config.now()
         return c.json(await operateBill(c.var.db, c.var.member, id, 'pay', { version, now }))
       })
-      .post('/:id/return', idParam(BILL_NOT_FOUND), async (c) => {
-        await loadRelatedBill(c.var.db, c.var.member, c.req.valid('param').id)
-        return c.json({}, 200)
+      // 差し戻す（MONEY-F-008）
+      .post('/:id/return', idParam(BILL_NOT_FOUND), jsonBody(billReturnInputSchema), async (c) => {
+        const { id } = c.req.valid('param')
+        const { version, reason } = c.req.valid('json')
+        const now = config.now()
+        return c.json(
+          await operateBill(c.var.db, c.var.member, id, 'return', { version, now, reason }),
+        )
       })
       .post('/:id/cancel', idParam(BILL_NOT_FOUND), async (c) => {
         await loadRelatedBill(c.var.db, c.var.member, c.req.valid('param').id)
