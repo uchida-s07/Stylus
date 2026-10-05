@@ -3,10 +3,10 @@
 # 002 お金（請求・支払いの記録）
 
 tier: L
-status: approved
+status: done
 created: 2026-10-04
 approved: 2026-10-04
-done:
+done: 2026-10-05
 review: 2026-10-04 合格（注意6件は承知で進める。docs/review-notes.md）
 
 <!-- status: draft | approved | done -->
