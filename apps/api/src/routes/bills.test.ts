@@ -303,4 +303,103 @@ describe('請求の API', () => {
       expect(rows.map((b) => b.amount)).toEqual([3000])
     })
   })
+
+  describe('一覧と合計', () => {
+    // 請求を DB に直接入れる（当事者は家族の呼び名、null は「家庭」）
+    function bill(
+      from: FamilyKey | null,
+      to: FamilyKey | null,
+      amount: number,
+      status: 'requested' | 'returned' | 'paid' | 'confirmed' | 'canceled' = 'requested',
+      extra: { occurredOn?: string } = {},
+    ) {
+      return t.insertBill({
+        fromMemberId: from && t.family[from].id,
+        toMemberId: to && t.family[to].id,
+        amount,
+        status,
+        ...extra,
+      })
+    }
+
+    it('[MONEY-F-004/AC-1] せいごの「受け取る額の合計」5,000円・「払う額の合計」1,000円、一覧には くうご→母 を除く4件', async () => {
+      const ids = [
+        (await bill('seigo', 'mother', 3000)).id,
+        (await bill('seigo', 'father', 2000)).id,
+        (await bill('mother', 'seigo', 1000)).id,
+        (await bill('seigo', null, 4000, 'paid')).id,
+      ]
+      await bill('kugo', 'mother', 500)
+
+      const res = await list('seigo')
+      expect(res.totals.self).toEqual({ receive: 5000, pay: 1000 })
+      expect(res.totals.household).toBeNull()
+      expect(res.bills.map((b) => b.id).sort()).toEqual([...ids].sort())
+    })
+
+    it('[MONEY-F-004/AC-2] 母の「払う額の合計」3,000円・「受け取る額の合計」0円・「家庭が払う額」4,000円・「家庭が受け取る額」2,000円', async () => {
+      await bill('seigo', null, 4000)
+      await bill('seigo', 'mother', 3000)
+      await bill(null, 'kugo', 2000)
+
+      const res = await list('mother')
+      expect(res.totals.self).toEqual({ pay: 3000, receive: 0 })
+      expect(res.totals.household).toEqual({ pay: 4000, receive: 2000 })
+    })
+
+    it('[MONEY-F-004/AC-3] 請求中・差し戻し・支払済・確認済・取消の5件のうち、「受け取る額の合計」に入るのは請求中の 1,000円 だけ', async () => {
+      await bill('seigo', 'mother', 1000, 'requested')
+      await bill('seigo', 'mother', 2000, 'returned')
+      await bill('seigo', 'mother', 4000, 'paid')
+      await bill('seigo', 'mother', 8000, 'confirmed')
+      await bill('seigo', 'mother', 16000, 'canceled')
+
+      expect((await list('seigo')).totals.self.receive).toBe(1000)
+    })
+
+    it('[MONEY-F-004/AC-4] くうごが関係する請求が1件も無いと、一覧は空で合計はどちらも 0円', async () => {
+      await bill('seigo', 'mother', 3000)
+      const res = await list('kugo')
+      expect(res.bills).toEqual([])
+      expect(res.totals.self).toEqual({ pay: 0, receive: 0 })
+    })
+
+    it('[MONEY-F-004/AC-5] 発生日 10/1・10/3・10/2 の3件は 10/3・10/2・10/1 の順に並ぶ', async () => {
+      await bill('seigo', 'mother', 100, 'requested', { occurredOn: '2026-10-01' })
+      await bill('seigo', 'mother', 300, 'requested', { occurredOn: '2026-10-03' })
+      await bill('seigo', 'mother', 200, 'requested', { occurredOn: '2026-10-02' })
+
+      const res = await list('seigo')
+      expect(res.bills.map((b) => b.occurredOn)).toEqual(['2026-10-03', '2026-10-02', '2026-10-01'])
+    })
+
+    it('[MONEY-F-004/AC-6] 確認済と取消の請求は「片付いた」に出て、「片付いていない」には出ない', async () => {
+      const confirmed = await bill('seigo', 'mother', 1000, 'confirmed')
+      const canceled = await bill('seigo', 'mother', 2000, 'canceled')
+
+      expect((await list('seigo', 'closed')).bills.map((b) => b.id).sort()).toEqual(
+        [confirmed.id, canceled.id].sort(),
+      )
+      expect((await list('seigo', 'open')).bills).toEqual([])
+    })
+
+    it('[MONEY-N-001/AC-2] 母→父 の請求は、管理者のせいごの一覧に入らない', async () => {
+      await bill('mother', 'father', 3000)
+      const res = await list('seigo')
+      expect(res.bills).toEqual([])
+      expect(res.totals.self).toEqual({ pay: 0, receive: 0 })
+    })
+
+    // AC ではない確認
+    it('同じ発生日なら登録の新しい順', async () => {
+      const older = await bill('seigo', 'mother', 100)
+      const newer = await bill('seigo', 'mother', 200)
+      expect((await list('seigo')).bills.map((b) => b.id)).toEqual([newer.id, older.id])
+    })
+
+    it('view が open・closed のどちらでもなければ 400', async () => {
+      const res = await t.call('seigo', 'GET', '/bills?view=all')
+      await expectError(res, 400, 'invalid_input')
+    })
+  })
 })
