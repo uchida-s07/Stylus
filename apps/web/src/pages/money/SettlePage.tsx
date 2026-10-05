@@ -8,6 +8,7 @@ import type {
 import {
   Alert,
   Anchor,
+  Button,
   Card,
   Center,
   Container,
@@ -21,13 +22,14 @@ import {
   Title,
 } from '@mantine/core'
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { api } from '../../api/client'
-import { callApi, loadErrorOf } from '../../api/responses'
+import { callApi, loadErrorOf, WRITE_MESSAGES } from '../../api/responses'
 import { useLeaveAsUnregistered } from '../../auth/unregistered'
 import { ErrorScreen, type ErrorKind } from '../../components/ErrorScreen'
 import { Loading } from '../../components/Loading'
-import { dateLabel, direction, settlementLabel, yen } from './format'
+import { ConfirmDialog } from './ConfirmDialog'
+import { dateLabel, direction, SETTLEMENT_CHANGED, settlementLabel, yen } from './format'
 import { combineResults, useApiLoad } from './useApiLoad'
 
 type As = 'self' | 'household'
@@ -59,7 +61,11 @@ function SettleView({ me, members }: { me: MeResponse; members: MemberSummary[] 
   const [as, setAs] = useState<As>('self')
   const [counterpart, setCounterpart] = useState('')
   const [preview, setPreview] = useState<PreviewState>({ kind: 'none' })
+  const [round, setRound] = useState(0)
+  const [notice, setNotice] = useState<string>()
+  const [confirming, setConfirming] = useState(false)
   const leaveAsUnregistered = useLeaveAsUnregistered()
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (!counterpart) return
@@ -76,7 +82,7 @@ function SettleView({ me, members }: { me: MeResponse; members: MemberSummary[] 
     return () => {
       active = false
     }
-  }, [as, counterpart, leaveAsUnregistered])
+  }, [as, counterpart, round, leaveAsUnregistered])
 
   const options = counterpartOptions(me, members, as)
 
@@ -89,6 +95,34 @@ function SettleView({ me, members }: { me: MeResponse; members: MemberSummary[] 
     setAs(nextAs)
     setCounterpart(nextCounterpart)
     setPreview(nextCounterpart ? { kind: 'loading' } : { kind: 'none' })
+    setNotice(undefined)
+  }
+
+  // まとめて払った（MONEY-F-011）：見ていた請求の ID と版、精算額、払う側を送る（tasks.md D-3）
+  // 成功したら精算の中身へ進む（D-4）。409 なら精算額を取り直して知らせる
+  async function payAll(p: SettlementPreview) {
+    const result = await callApi(() =>
+      api.settlements.$post({
+        json: {
+          as,
+          counterpart,
+          bills: p.bills.map((b) => ({ id: b.id, version: b.version })),
+          amount: p.amount,
+          // 差し引き 0円 なら押した側が払う側
+          payer: p.payer ?? 'self',
+        },
+      }),
+    )
+    setConfirming(false)
+    if (result.kind === 'ok') return void navigate(`/money/settlements/${result.data.id}`)
+    if (result.kind === 'unregistered') return void (await leaveAsUnregistered())
+    if (result.kind === 'network') return setNotice(WRITE_MESSAGES.network)
+    if (result.status === 409) {
+      setNotice(SETTLEMENT_CHANGED)
+      setRound((r) => r + 1)
+      return
+    }
+    setNotice(WRITE_MESSAGES.failed)
   }
 
   return (
@@ -128,13 +162,32 @@ function SettleView({ me, members }: { me: MeResponse; members: MemberSummary[] 
           </Center>
         )}
         {preview.kind === 'error' && <Alert color="red">{LOAD_MESSAGES[preview.error]}</Alert>}
-        {preview.kind === 'ready' && <PreviewView preview={preview.preview} />}
+        {notice && <Alert color="red">{notice}</Alert>}
+        {preview.kind === 'ready' && (
+          <PreviewView preview={preview.preview} onPay={() => setConfirming(true)} />
+        )}
       </Stack>
+      {confirming && preview.kind === 'ready' && (
+        <ConfirmDialog
+          opened
+          title={`${payLabel(preview.preview)} 払ったことにしますか？`}
+          confirmLabel="払った"
+          onClose={() => setConfirming(false)}
+          onConfirm={() => payAll(preview.preview)}
+        />
+      )}
     </Container>
   )
 }
 
-function PreviewView({ preview: p }: { preview: SettlementPreview }) {
+// 「母がせいごに 2,500円」。差し引き 0円 なら押した側（名義の側）が払う側
+function payLabel(p: SettlementPreview) {
+  return p.payer === 'counterpart'
+    ? settlementLabel(p.counterpart, p.self, p.amount)
+    : settlementLabel(p.self, p.counterpart, p.amount)
+}
+
+function PreviewView({ preview: p, onPay }: { preview: SettlementPreview; onPay: () => void }) {
   if (p.bills.length === 0) return <Text>精算する請求はありません</Text>
   const selfBills = p.bills.filter((b) => b.from.memberId === p.self.memberId)
   const counterpartBills = p.bills.filter((b) => b.from.memberId !== p.self.memberId)
@@ -161,6 +214,8 @@ function PreviewView({ preview: p }: { preview: SettlementPreview }) {
               : settlementLabel(p.counterpart, p.self, p.amount)}
         </Text>
       </Card>
+      {/* 払う側（0円ならどちらも）だけが押せる。受け取る側には出さない */}
+      {p.payer !== 'counterpart' && <Button onClick={onPay}>まとめて払った</Button>}
     </Stack>
   )
 }

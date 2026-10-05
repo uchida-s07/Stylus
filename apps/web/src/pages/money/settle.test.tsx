@@ -1,10 +1,12 @@
 import type { SettlementPreview } from '@stylus/shared'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { installFakeApi, json, meRoute } from '../../../test/fakeApi'
 import {
   billSummary,
+  deferred,
+  errorResponse,
   FAMILY,
   MEMBERS,
   meOf,
@@ -156,5 +158,124 @@ describe('精算の画面（MONEY-F-010）', () => {
     await chooseCounterpart('母')
     const group = (await screen.findByText('せいご → 母')).closest('section')!
     expect(within(group).getAllByRole('listitem')).toHaveLength(2)
+  })
+})
+
+// 母から見た MONEY-F-010/AC-1 の精算（母がせいごに 2,500円）
+function motherPreview(overrides: Partial<SettlementPreview> = {}): SettlementPreview {
+  return preview({
+    self: party('mother'),
+    counterpart: party('seigo'),
+    selfRequestedTotal: 1000,
+    counterpartRequestedTotal: 3500,
+    amount: 2500,
+    payer: 'self',
+    ...overrides,
+  })
+}
+
+const SETTLEMENT_ID = '40000000-0000-4000-8000-000000000001'
+const postsOf = (requests: Request[]) => requests.filter((r) => r.method === 'POST')
+
+async function payAll(
+  choice: '払った' | 'キャンセル',
+  title = '母がせいごに 2,500円 払ったことにしますか？',
+) {
+  await userEvent.click(await screen.findByRole('button', { name: 'まとめて払った' }))
+  const dialog = await screen.findByRole('dialog', { name: title })
+  await userEvent.click(within(dialog).getByRole('button', { name: choice }))
+}
+
+describe('まとめて払った（MONEY-F-011）', () => {
+  beforeEach(() => {
+    signIn()
+  })
+
+  it('[MONEY-F-011/AC-1] 母が相手「せいご」の精算で「まとめて払った」を押し、確認で「払った」を選ぶと、見ていた請求と精算額を送り、精算の中身へ進む', async () => {
+    const p = motherPreview()
+    const { requests, visited } = openSettle('mother', [p], {
+      'POST /settlements': () => json({ id: SETTLEMENT_ID }, 201),
+    })
+    await chooseCounterpart('せいご')
+    await payAll('払った')
+
+    await waitFor(() => expect(visited).toContain(`/money/settlements/${SETTLEMENT_ID}`))
+    expect(await postsOf(requests)[0]!.clone().json()).toEqual({
+      as: 'self',
+      counterpart: FAMILY.seigo.id,
+      bills: p.bills.map((b) => ({ id: b.id, version: b.version })),
+      amount: 2500,
+      payer: 'self',
+    })
+  })
+
+  it('[MONEY-F-011/AC-2] 「まとめて払った」を押し、確認で「キャンセル」を選ぶと、何も送られない', async () => {
+    const { requests } = openSettle('mother', [motherPreview()])
+    await chooseCounterpart('せいご')
+    await payAll('キャンセル')
+
+    expect(postsOf(requests)).toHaveLength(0)
+    expect(screen.getByText('母がせいごに 2,500円')).toBeInTheDocument()
+  })
+
+  it('[MONEY-F-011/AC-4] 母が精算を開いた後に請求が増えていたら、「精算の中身が変わりました。もう一度確かめてください。」と出て、精算額「母がせいごに 3,500円」が出る', async () => {
+    openSettle(
+      'mother',
+      [motherPreview(), motherPreview({ counterpartRequestedTotal: 4500, amount: 3500 })],
+      { 'POST /settlements': errorResponse(409, 'state_changed') },
+    )
+    await chooseCounterpart('せいご')
+    await payAll('払った')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '精算の中身が変わりました。もう一度確かめてください。',
+    )
+    expect(await screen.findByText('母がせいごに 3,500円')).toBeInTheDocument()
+  })
+
+  it('[MONEY-F-011/AC-7] 保存に失敗すると「保存できませんでした。時間をおいてもう一度お試しください。」と出る', async () => {
+    openSettle('mother', [motherPreview()], {
+      'POST /settlements': errorResponse(500, 'internal'),
+    })
+    await chooseCounterpart('せいご')
+    await payAll('払った')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '保存できませんでした。時間をおいてもう一度お試しください。',
+    )
+  })
+
+  // AC ではない確認（tasks.md D-4）
+  it('送っている間は押せず、確認の「払った」を続けて押しても送るのは1回だけ', async () => {
+    const pending = deferred(() => json({ id: SETTLEMENT_ID }, 201))
+    const { requests } = openSettle('mother', [motherPreview()], {
+      'POST /settlements': pending.handler,
+    })
+    await chooseCounterpart('せいご')
+    await userEvent.click(await screen.findByRole('button', { name: 'まとめて払った' }))
+    const dialog = await screen.findByRole('dialog')
+    const confirm = within(dialog).getByRole('button', { name: '払った' })
+    await userEvent.click(confirm)
+    await userEvent.click(confirm)
+    pending.release()
+
+    await waitFor(() => expect(postsOf(requests)).toHaveLength(1))
+  })
+
+  it('差し引き 0円 なら、押した側が払う側として送る', async () => {
+    const p = preview({
+      amount: 0,
+      payer: null,
+      selfRequestedTotal: 1000,
+      counterpartRequestedTotal: 1000,
+    })
+    const { requests } = openSettle('seigo', [p], {
+      'POST /settlements': () => json({ id: SETTLEMENT_ID }, 201),
+    })
+    await chooseCounterpart('母')
+    await payAll('払った', 'せいごが母に 0円 払ったことにしますか？')
+
+    await waitFor(() => expect(postsOf(requests)).toHaveLength(1))
+    expect(await postsOf(requests)[0]!.clone().json()).toMatchObject({ amount: 0, payer: 'self' })
   })
 })

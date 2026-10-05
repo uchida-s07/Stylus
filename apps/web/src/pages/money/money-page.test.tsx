@@ -91,3 +91,35 @@ describe('お金の画面（MONEY-F-004）', () => {
     expect(router.state.location.pathname).toBe('/money')
   })
 })
+
+describe('受け取り待ちの精算（MONEY-F-011）', () => {
+  beforeEach(() => {
+    signIn()
+  })
+
+  it('[MONEY-F-011/AC-1] 母がまとめて払った後、せいごのお金の画面に受け取り待ちの精算「母から 2,500円」が出る', async () => {
+    installFakeApi({
+      'GET /bills': () =>
+        json(
+          listResponse({
+            pendingSettlements: [
+              {
+                id: '40000000-0000-4000-8000-000000000001',
+                payer: party('mother'),
+                receiver: party('seigo'),
+                amount: 2500,
+                paidAt: '2026-10-04T03:00:00.000Z',
+                side: 'receiver',
+              },
+            ],
+          }),
+        ),
+    })
+    renderApp('/money')
+
+    expect(await screen.findByRole('link', { name: /母から 2,500円/ })).toHaveAttribute(
+      'href',
+      '/money/settlements/40000000-0000-4000-8000-000000000001',
+    )
+  })
+})
