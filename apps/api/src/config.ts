@@ -17,5 +17,6 @@ export function configFromEnv(env: WorkerBindings): AppConfig {
     openDb: (e) => openHyperdriveDb(e.HYPERDRIVE.connectionString),
     // withSentry の中で呼ばれるので、要求の情報は SDK が付ける
     reportError: (error) => captureException(error),
+    now: () => new Date(),
   }
 }

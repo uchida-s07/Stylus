@@ -16,3 +16,11 @@
 | ログイン画面 | 「Google でログイン」ボタンのある画面 | `/login`、`LoginPage` | サインイン画面 |
 | アプリのホーム | ログインした後に最初に出る画面。自分の表示名を出す | `/`、`HomePage` | トップページ |
 | 公開キー | フロントに置いてよい Supabase のキー | `sb_publishable_…`、`VITE_SUPABASE_PUBLISHABLE_KEY` | anon キー（古い形式。使わない） |
+| 家庭 | 父母を1つにまとめた、請求・精算の相手。父母のどちらが操作してもよい | DB では当事者の列が `NULL`、API・画面では `'household'`（`partyRefSchema`） | 家族全体、親 |
+| 当事者 | 請求する側と請求先（精算なら払う側と受け取る側）。家族の1人か「家庭」 | `bills.from_member_id`・`to_member_id`、`settlements.payer_member_id`・`receiver_member_id` | 対象者 |
+| 関係者 | その請求・精算を見られ、操作できる家族。当事者が家族の1人ならその人、「家庭」なら父と母 | `loadRelatedBill()`・`loadRelatedSettlement()`（関係者でなければ 404） | 参加者 |
+| 名義 | 請求・精算を誰として行うか。「自分」か「家庭」。「家庭」の名義は親だけが使える | `as`（`'self' \| 'household'`、`asSchema`） | 立場（立場「親」「料理担当」とは別もの） |
+| 側 | 請求する側・請求先側、精算の払う側・受け取る側。どの操作ができるかは側で決まる | `BillSide`（`'from' \| 'to'`）、`SettlementSide`（`'payer' \| 'receiver'`）、`billSidesOf()`・`settlementSidesOf()` | 役割 |
+| 精算 | 2人の当事者の間の請求中の請求を、両方向とも差し引いてまとめて払う・受け取ること | 表 `settlements`、`/settlements`、`/money/settle` | 清算、相殺 |
+| 履歴 | 片付いた請求（確認済・取消）の一覧。お金の画面の右上のメニューから開く | `/money/history`、`HistoryPage`、`GET /bills?view=closed` | 片付いた |
+| 「支払い」「受け取り」 | お金の画面の一覧のタブ。自分（親なら「家庭」も）が請求先側の請求が「支払い」、請求する側の請求が「受け取り」 | `MoneyPage` の `Tab`（`'pay' \| 'receive'`）、localStorage のキー `stylus.money.billTab` | 支出・収入 |

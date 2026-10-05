@@ -3,7 +3,7 @@
 > システムの全体構成と、レイヤーごとの責務。実装がこれとずれたら、どちらを直すかを決めて揃える。
 > 技術判断の理由は adr/ に書く。
 
-updated: 2026-09-29
+updated: 2026-10-05
 
 ## 全体構成
 
@@ -71,9 +71,10 @@ packages/
 | ログイン状態 | supabase-js のセッションを画面に伝える。ログイン・ログアウト | `apps/web/src/auth` | セッションを消すのは、ログアウト・Supabase が無効と返したとき・API が 403 `not_a_member` を返したときだけ。それ以外（通信エラー・500）では消さない |
 | API の呼び出し | Hono RPC（`hc<AppType>`）で API を呼ぶ。アクセストークンを `Authorization: Bearer` で付け、401 なら1回だけ更新して送り直す | `apps/web/src/api` | Cookie を使う。`apps/api` の実行コードを import する（`import type` だけ許す） |
 | API の共通処理 | CORS → エラー処理（500 と Sentry）→ トークンの検証 → DB を開く → 家族の照合 の順のミドルウェア | `apps/api/src/middleware` | 順番を崩す（トークンが無効な要求で DB を開かない） |
-| API のルート | 各機能の処理。ロール・立場が要る操作は `requireAdmin()`・`requireAttribute()` を付ける | `apps/api/src/routes` | 重い処理をする（1要求の CPU 時間は 10ms が目安） |
+| API のルート | 各機能の処理（入力の検証と応答）。ロール・立場が要る操作は `requireAdmin()`・`requireAttribute()` を付ける。名義・側が絡む操作の可否は、領域ごとの判定（`money/`）で行うこともある | `apps/api/src/routes` | 重い処理をする（1要求の CPU 時間は 10ms が目安） |
+| お金の処理 | 請求・精算の関係者の判定（関係者でなければ 404、側が違えば 403）、状態の更新、精算額の計算と精算。精算と含まれる請求は1つのトランザクションで更新する | `apps/api/src/money` | 状態遷移の表・精算額の計算を API の中だけに置く（`packages/shared` のものを画面と共有する） |
 | DB | Drizzle のスキーマとマイグレーション。要求ごとに Hyperdrive 経由で接続して閉じる | `apps/api/src/db`、`apps/api/drizzle` | RLS を有効にしないテーブルを作る。ポリシーを作る（Data API から読み書きさせない） |
-| 共有 | 型・Zod スキーマ・共通のルール（日本時間の日付） | `packages/shared` | どちらかの実行環境に依存するコードを置く |
+| 共有 | 型・Zod スキーマ・共通のルール（日本時間の日付、請求・精算の状態遷移の表、精算額の計算） | `packages/shared` | どちらかの実行環境に依存するコードを置く |
 
 ## データの流れ
 
@@ -83,7 +84,7 @@ packages/
 2. API は CORS を確かめ、トークンを Supabase の JWKS の公開鍵で検証する（ES256、発行元と宛先も確かめる）。無効なら 401
 3. Hyperdrive 経由で DB を開き、トークンの `sub` で `members.auth_user_id` を探す。見つからなければ 403 `not_a_member`
 4. ルートが応答を返す（`{ id, displayName, isAdmin, isParent, isCook }`）。応答の後に DB を閉じる
-5. 画面は 401 なら1回だけ更新して送り直し、403 なら未登録として端末のセッションを消してログイン画面へ、通信エラーなら「通信できません。…」、それ以外の失敗なら「うまく読み込めませんでした。…」を出す
+5. 画面は 401 なら1回だけ更新して送り直し、403 `not_a_member` なら未登録として端末のセッションを消してログイン画面へ（403 `forbidden` はそれ以外の失敗と同じに扱い、セッションは消さない）、通信エラーなら「通信できません。…」、それ以外の失敗なら「うまく読み込めませんでした。…」を出す
 
 ## 外部サービス
 
@@ -99,12 +100,11 @@ packages/
 
 ## 規約
 
-- エラーの応答の形は `{ error: { code, message } }`。401 `unauthenticated`、403 `not_a_member` / `forbidden`、500 `internal`
+- エラーの応答の形は `{ error: { code, message } }`。400 `invalid_input` のときだけ、項目ごとの知らせ `fields`（項目名 → 文言）が付く。code は 400 `invalid_input`、401 `unauthenticated`、403 `not_a_member` / `forbidden`、404 `not_found`、409 `state_changed`（状態や中身が画面を開いた後に変わった）/ `in_use`（使われているカテゴリー）/ `duplicate_name`（同じ名前のカテゴリー）/ `already_registered`（二重登録を防ぐ ID が同じで中身が違う請求）、500 `internal`
 - 日付は日本時間（UTC+9）の0時で区切る。求め方は `@stylus/shared` の `toJstDate()` 1つにまとめる。Workers の Cron は UTC で動く
 - 秘密情報（サービスロールキー、DB の接続情報、Cloudflare の API トークン）は Workers の secret と GitHub の Environments の secret にだけ置く。フロントに置くのは公開してよい値（Supabase の URL と公開キー、API の URL、Sentry の DSN）だけ
 - 新しい依存パッケージを API に足すときは、Workers で動くかを確かめる
 - マイグレーションは API より先に流れ、フロントは別に配信される。列の削除や名前の変更は2回に分けて行う
-- 押せる部分は 44×44px 以上。ボタンの標準の大きさは Mantine のテーマで `lg`（高さ 50px）にしてある
 - ブランチ運用：`main`＝本番、`develop`＝開発の統合先（既定ブランチ）、`spec/NNN-<name>` で作業。spec → develop は squash、develop → main はマージコミット。rebase は使わない
 
 ## 運用
@@ -125,6 +125,13 @@ packages/
 5. Google の OAuth の同意画面を「テスト中」のまま使っている間は、その人の Google アカウントを OAuth のテストユーザーにも足す
 
 登録する値（2026-09-27 時点）：せいご＝管理者、父・母＝親、母＝料理担当
+
+### 家族の登録を外す
+
+お金の表（`bills`・`bill_events`・`settlements`）から `members` への外部キーは `ON DELETE RESTRICT` なので、お金の記録がある家族の `members` の行は消せない。登録を外すときは次のようにする。
+
+1. `members` の行は消さず、`auth_user_id` を NULL にする（ログインできなくなり、API は 403 `not_a_member` を返す。お金の記録と表示名は残る）
+2. Supabase の Auth の利用者は消してよい
 
 ### 定期的に確かめること
 

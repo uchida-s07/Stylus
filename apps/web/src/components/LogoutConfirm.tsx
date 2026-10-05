@@ -23,7 +23,7 @@ export function LogoutConfirm({
   }
 
   return (
-    // 右上の閉じるボタン（×）は小さく押しにくいので出さない（COMMON-N-008）。「キャンセル」・Esc・外側を押すと閉じる
+    // 右上の閉じるボタン（×）は出さない。「キャンセル」があるので要らない（Esc・外側を押しても閉じる）
     <Modal
       opened={opened}
       onClose={onClose}

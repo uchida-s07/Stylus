@@ -22,6 +22,13 @@
       "when": 1790513743186,
       "tag": "0002_members_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791189388641,
+      "tag": "0003_money",
+      "breakpoints": true
     }
   ]
 }

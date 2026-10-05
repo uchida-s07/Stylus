@@ -98,4 +98,13 @@ describe('ログアウト（AUTH-F-004）', () => {
       expect(options).toEqual({ scope: 'local' })
     }
   })
+
+  // AC ではない確認（spec 002「3. 変更差分」画面：×は出さないままにする）
+  it('ログアウトの確認のボタンは「キャンセル」と「ログアウト」の2つだけ（右上の×は無い）', async () => {
+    renderApp('/')
+    await userEvent.click(await screen.findByRole('button', { name: 'ログアウト' }))
+    const dialog = await screen.findByRole('dialog', { name: 'ログアウトしますか？' })
+    const buttons = within(dialog).getAllByRole('button')
+    expect(buttons.map((b) => b.textContent)).toEqual(['キャンセル', 'ログアウト'])
+  })
 })

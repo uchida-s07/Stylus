@@ -12,6 +12,7 @@ export function testAppConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       throw new Error('このテストでは DB を使わない')
     },
     reportError: () => {},
+    now: () => new Date(),
     ...overrides,
   }
 }
@@ -25,5 +26,5 @@ export async function createTestApp(overrides: Partial<AppConfig> = {}) {
       ...overrides,
     }),
   )
-  return { app, db: testDb.db, close: testDb.close }
+  return { app, db: testDb.db, client: testDb.client, close: testDb.close }
 }
