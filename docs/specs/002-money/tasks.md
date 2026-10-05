@@ -73,7 +73,7 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
 
 ## 2. 共有のルール
 
-- [ ] T-4: 状態遷移の表・精算額の計算・Zod スキーマ・エラーの code
+- [x] T-4: 状態遷移の表・精算額の計算・Zod スキーマ・エラーの code
   - 対応: design.md「状態遷移」「合計と精算額」、spec「3. 変更差分」API（エラーの code、`packages/shared` に足すもの）。各 AC の土台
   - 対象ファイル: `packages/shared/src/money/transitions.ts`（どの状態で、どちらの側が、どの操作をできるか・次の状態・経過の種類）、`packages/shared/src/money/settlement.ts`（向きごとの小計と差し引き・払う側）、`packages/shared/src/schemas/money.ts`（請求の入力・請求・経過・一覧・精算・カテゴリーの Zod）、`packages/shared/src/schemas/error.ts`（`invalid_input`・`not_found`・`state_changed`・`in_use`・`duplicate_name`・`already_registered`）、`packages/shared/src/index.ts`、各 `*.test.ts`（AC なし）
   - 内容: 表は design.md の状態遷移の表をそのまま写す。表そのものと計算を単体テストする（全部の「状態 × 操作 × 側」の組み合わせ、差し引き 0円、片方向だけ）。入力のスキーマは D-1 の数え方で、空白の定義は members の表示名（AUTH-F-001）と同じ文字にする

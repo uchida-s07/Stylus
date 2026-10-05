@@ -1,3 +1,4 @@
+import { BILL_EVENT_KINDS, BILL_STATUSES, SETTLEMENT_STATUSES } from '@stylus/shared'
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
@@ -53,23 +54,7 @@ function trimmedText(column: AnyPgColumn, min: number, max: number) {
   return sql`${column} = btrim(${column}, ${BLANK_CHARS}) and char_length(${column}) between ${sql.raw(String(min))} and ${sql.raw(String(max))}`
 }
 
-export const BILL_STATUSES = ['requested', 'returned', 'paid', 'confirmed', 'canceled'] as const
-export const BILL_EVENT_KINDS = [
-  'created',
-  'edited',
-  'resubmitted',
-  'canceled',
-  'paid',
-  'returned',
-  'confirmed',
-  'payment_canceled',
-  'not_received',
-  'settled_paid',
-  'settled_confirmed',
-  'settlement_payment_canceled',
-  'settlement_not_received',
-] as const
-export const SETTLEMENT_STATUSES = ['paid', 'confirmed', 'reverted'] as const
+// 状態・経過の種類の一覧は packages/shared の状態遷移の表と同じものを使う
 
 function oneOf(column: AnyPgColumn, values: readonly string[]) {
   return sql`${column} in (${sql.raw(values.map((v) => `'${v}'`).join(', '))})`
