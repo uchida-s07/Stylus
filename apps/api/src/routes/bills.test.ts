@@ -474,4 +474,84 @@ describe('請求の API', () => {
       await expectError(await t.call('seigo', 'GET', '/bills/abc'), 404, 'not_found')
     })
   })
+
+  // 請求の中身（API）
+  async function detail(who: FamilyKey, id: string) {
+    const res = await t.call(who, 'GET', `/bills/${id}`)
+    expect(res.status).toBe(200)
+    return billDetailSchema.parse(await res.json())
+  }
+
+  async function billRow(id: string) {
+    const [row] = await t.db.select().from(bills).where(eq(bills.id, id))
+    return row!
+  }
+
+  function eventKinds(d: { events: { kind: string; actorName: string }[] }) {
+    return d.events.map((e) => `${e.kind}（${e.actorName}）`)
+  }
+
+  describe('払った（MONEY-F-006）', () => {
+    const pay = (who: FamilyKey, id: string, version = 1) =>
+      t.call(who, 'POST', `/bills/${id}/pay`, { version })
+
+    it('[MONEY-F-006/AC-1] 母が せいご→母 3,000円 を「払った」にすると、支払済になり、母の「払う額の合計」から外れ、経過に「払った（母）」が残る', async () => {
+      const bill = await t.insertBill({ amount: 3000 })
+      expect((await list('mother')).totals.self.pay).toBe(3000)
+
+      const res = await pay('mother', bill.id)
+      expect(res.status).toBe(200)
+      expect(billDetailSchema.parse(await res.json())).toMatchObject({ status: 'paid', version: 2 })
+      expect((await list('mother')).totals.self.pay).toBe(0)
+      expect(eventKinds(await detail('mother', bill.id))).toContain('paid（母）')
+    })
+
+    it('[MONEY-F-006/AC-3] せいご（請求する側）が「払った」の API を呼ぶと、403 で請求中のまま', async () => {
+      const bill = await t.insertBill()
+      await expectError(await pay('seigo', bill.id), 403, 'forbidden')
+      expect(await billRow(bill.id)).toMatchObject({ status: 'requested', version: 1 })
+    })
+
+    it('[MONEY-F-006/AC-4] せいご→家庭 を父と母が同じ版で「払った」にすると、一方だけが通り、経過の「払った」は1回だけで、もう一方は 409', async () => {
+      const bill = await t.insertBill({ toMemberId: null })
+      const father = await pay('father', bill.id, 1)
+      const mother = await pay('mother', bill.id, 1)
+
+      expect(father.status).toBe(200)
+      await expectError(mother, 409, 'state_changed')
+      const d = await detail('seigo', bill.id)
+      expect(d.status).toBe('paid')
+      expect(d.events.filter((e) => e.kind === 'paid')).toHaveLength(1)
+    })
+
+    it('[MONEY-F-006/AC-5] 母が 3,000円 の請求を開いた後に、せいごが 2,500円 に直していたら、母の「払った」は 409 で請求中のまま、2,500円 のまま', async () => {
+      const bill = await t.insertBill({ amount: 3000 })
+      // 母が版 1 で開いた後に、せいごが直した（版 2）
+      await t.db.update(bills).set({ amount: 2500, version: 2 }).where(eq(bills.id, bill.id))
+
+      await expectError(await pay('mother', bill.id, 1), 409, 'state_changed')
+      expect(await billRow(bill.id)).toMatchObject({ status: 'requested', amount: 2500 })
+    })
+
+    it('[MONEY-F-005/AC-2] せいご→家庭 を父が「払った」にすると、母が開いた経過に「払った（父）」と出る', async () => {
+      const bill = await t.insertBill({ toMemberId: null })
+      expect((await pay('father', bill.id)).status).toBe(200)
+      expect(eventKinds(await detail('mother', bill.id))).toEqual(['paid（父）'])
+    })
+
+    // AC ではない確認
+    it('支払済の請求の「払った」は 409（状態が違う）', async () => {
+      const bill = await t.insertBill({ status: 'paid' })
+      await expectError(await pay('mother', bill.id), 409, 'state_changed')
+    })
+
+    it('版が無い・形が違うと 400', async () => {
+      const bill = await t.insertBill()
+      await expectError(
+        await t.call('mother', 'POST', `/bills/${bill.id}/pay`, {}),
+        400,
+        'invalid_input',
+      )
+    })
+  })
 })

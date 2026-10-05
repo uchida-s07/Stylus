@@ -26,5 +26,5 @@ export async function createTestApp(overrides: Partial<AppConfig> = {}) {
       ...overrides,
     }),
   )
-  return { app, db: testDb.db, close: testDb.close }
+  return { app, db: testDb.db, client: testDb.client, close: testDb.close }
 }
