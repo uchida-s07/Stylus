@@ -1,22 +1,78 @@
-import type { BillSummary, createBillInputSchema } from '@stylus/shared'
+import { MONEY_MESSAGES, type BillSummary, type createBillInputSchema } from '@stylus/shared'
 import { eq } from 'drizzle-orm'
 import type { z } from 'zod'
 import type { Db } from '../db/client'
-import { billEvents, bills } from '../db/schema'
+import { billCategories, billEvents, bills, members } from '../db/schema'
 import type { Member } from '../env'
+import { fail, failInput } from '../errors'
+import { PG, pgErrorCode } from '../validate'
 import { selectBillRows, toBillSummary, type Executor } from './summaries'
 
 export type BillCreateInput = z.output<ReturnType<typeof createBillInputSchema>>
 
 // 請求を登録する（MONEY-F-001）。請求中で保存し、経過「登録」を足す
+// 判定の順（tasks.md D-2）：形の検証（ルートの jsonBody で 400）→ 名義の権限（403）→ 組み合わせ・相手の実在（400）
 export async function createBill(
   db: Db,
   member: Member,
   input: BillCreateInput,
 ): Promise<BillSummary> {
+  if (input.as === 'household' && !member.isParent) {
+    fail(403, 'forbidden', '「家庭」として請求できるのは親だけです')
+  }
   const fromMemberId = input.as === 'household' ? null : member.id
   const toMemberId = input.to === 'household' ? null : input.to
+  await checkParties(db, member, fromMemberId, toMemberId)
+  await checkCategory(db, input.categoryId)
 
+  try {
+    return await insertBill(db, member, input, fromMemberId, toMemberId)
+  } catch (error) {
+    // 判定の後、登録の直前にカテゴリーが削除された（MONEY-F-001/AC-11）
+    if (pgErrorCode(error) === PG.FOREIGN_KEY_VIOLATION) {
+      failInput({ categoryId: MONEY_MESSAGES.categoryNotFound })
+    }
+    throw error
+  }
+}
+
+// 請求する側と請求先の組み合わせ（MONEY-F-001 の対象外の入力）
+async function checkParties(
+  db: Db,
+  member: Member,
+  fromMemberId: string | null,
+  toMemberId: string | null,
+) {
+  if (toMemberId === null) {
+    // 親は「家庭」宛てにできない（「家庭」から「家庭」も同じ）
+    if (member.isParent) failInput({ to: '親は「家庭」に請求できません' })
+    return
+  }
+  if (toMemberId === member.id) failInput({ to: '自分には請求できません' })
+  const [to] = await db
+    .select({ isParent: members.isParent })
+    .from(members)
+    .where(eq(members.id, toMemberId))
+  if (!to) failInput({ to: MONEY_MESSAGES.reselect })
+  // 「家庭」の請求先は息子だけ
+  if (fromMemberId === null && to.isParent) failInput({ to: '「家庭」の請求先は息子だけです' })
+}
+
+async function checkCategory(db: Db, categoryId: string) {
+  const [category] = await db
+    .select({ id: billCategories.id })
+    .from(billCategories)
+    .where(eq(billCategories.id, categoryId))
+  if (!category) failInput({ categoryId: MONEY_MESSAGES.categoryNotFound })
+}
+
+async function insertBill(
+  db: Db,
+  member: Member,
+  input: BillCreateInput,
+  fromMemberId: string | null,
+  toMemberId: string | null,
+): Promise<BillSummary> {
   const id = await db.transaction(async (tx) => {
     const [bill] = await tx
       .insert(bills)

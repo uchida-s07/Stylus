@@ -1,16 +1,26 @@
-import { billListResponseSchema, billSummarySchema, type BillInput } from '@stylus/shared'
+import {
+  apiErrorSchema,
+  billListResponseSchema,
+  billSummarySchema,
+  type BillInput,
+} from '@stylus/shared'
+import { count, eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { FamilyKey } from '../../test/family'
 import { createMoneyTestApp, type MoneyTestApp } from '../../test/money'
+import { billCategories, bills } from '../db/schema'
 
 // 日本時間 2026-10-04 12:00
 const NOW = new Date('2026-10-04T03:00:00Z')
 
 describe('請求の API', () => {
   let t: MoneyTestApp
+  // 「今」（テストごとに差し替えられる）
+  let now = NOW
 
   beforeEach(async () => {
-    t = await createMoneyTestApp({ now: () => NOW })
+    now = NOW
+    t = await createMoneyTestApp({ now: () => now })
   })
 
   afterEach(async () => {
@@ -37,6 +47,25 @@ describe('請求の API', () => {
 
   async function listIds(who: FamilyKey) {
     return (await list(who)).bills.map((b) => b.id)
+  }
+
+  async function countBills() {
+    const [row] = await t.db.select({ n: count() }).from(bills)
+    return row?.n
+  }
+
+  async function expectError(res: Response, status: number, code: string) {
+    expect(res.status).toBe(status)
+    const body = apiErrorSchema.parse(await res.json())
+    expect(body.error.code).toBe(code)
+    return body.error
+  }
+
+  // 登録が 400 で止まり、請求が作られないこと
+  async function expectNotCreated(res: Response, field?: string, message?: string) {
+    const error = await expectError(res, 400, 'invalid_input')
+    if (field) expect(error.fields?.[field]).toEqual(message ?? expect.any(String))
+    expect(await countBills()).toBe(0)
   }
 
   describe('登録と一覧の基本', () => {
@@ -107,6 +136,140 @@ describe('請求の API', () => {
         where: (e, { eq }) => eq(e.billId, bill.id),
       })
       expect(events).toMatchObject([{ kind: 'created', actorMemberId: t.family.seigo.id }])
+    })
+  })
+
+  describe('登録の入力の検証', () => {
+    it('[MONEY-F-001/AC-3] 件名が空白だけなら、請求は作られず件名に「入力してください」', async () => {
+      await expectNotCreated(
+        await createBill('seigo', { to: t.family.mother.id, title: '　 ' }),
+        'title',
+        '入力してください',
+      )
+    })
+
+    it.each([0, 10_000_000, 1.5, -100])(
+      '[MONEY-F-001/AC-4] 金額 %d では請求は作られない',
+      async (amount) => {
+        await expectNotCreated(
+          await createBill('seigo', { to: t.family.mother.id, amount }),
+          'amount',
+          '1円以上9,999,999円以下の整数で入力してください',
+        )
+      },
+    )
+
+    it.each([1, 9_999_999])(
+      '[MONEY-F-001/AC-5] 金額 %d なら請求中の請求ができる',
+      async (amount) => {
+        const res = await createBill('seigo', { to: t.family.mother.id, amount })
+        expect(res.status).toBe(201)
+        expect(billSummarySchema.parse(await res.json())).toMatchObject({
+          amount,
+          status: 'requested',
+        })
+      },
+    )
+
+    it('[MONEY-F-001/AC-6] 日本時間 2026-10-04 23:59 に発生日 2026-10-05 で請求すると、請求は作られない', async () => {
+      now = new Date('2026-10-04T14:59:00Z')
+      await expectNotCreated(
+        await createBill('seigo', { to: t.family.mother.id, occurredOn: '2026-10-05' }),
+        'occurredOn',
+        '今日より後の日付は選べません',
+      )
+    })
+
+    it('[MONEY-F-001/AC-7] 請求先を自分にすると、請求は作られない', async () => {
+      await expectNotCreated(
+        await createBill('seigo', { to: t.family.seigo.id }),
+        'to',
+        '自分には請求できません',
+      )
+    })
+
+    it('[MONEY-F-001/AC-8] 母が請求先を「家庭」にすると、請求は作られない', async () => {
+      await expectNotCreated(
+        await createBill('mother', { to: 'household' }),
+        'to',
+        '親は「家庭」に請求できません',
+      )
+    })
+
+    it('[MONEY-F-001/AC-9] 父が「家庭」として母に請求すると、請求は作られない', async () => {
+      await expectNotCreated(
+        await createBill('father', { as: 'household', to: t.family.mother.id }),
+        'to',
+        '「家庭」の請求先は息子だけです',
+      )
+    })
+
+    it('[MONEY-F-001/AC-10] 親でないせいごが「家庭」として登録の API を呼ぶと、403 が返り請求は作られない', async () => {
+      await expectError(
+        await createBill('seigo', { as: 'household', to: t.family.kugo.id }),
+        403,
+        'forbidden',
+      )
+      expect(await countBills()).toBe(0)
+    })
+
+    it('[MONEY-F-001/AC-11] 選んだカテゴリー「食費」が削除されていたら、請求は作られず「カテゴリーが見つかりません。選び直してください」', async () => {
+      const id = await t.categoryId('食費')
+      await t.db.delete(billCategories).where(eq(billCategories.id, id))
+      await expectNotCreated(
+        await createBill('seigo', { to: t.family.mother.id, categoryId: id }),
+        'categoryId',
+        'カテゴリーが見つかりません。選び直してください',
+      )
+    })
+
+    it('[MONEY-F-001/AC-15] 件名51文字・メモ501文字では作られず、件名50文字・メモ500文字なら作られる', async () => {
+      const to = t.family.mother.id
+      await expectNotCreated(await createBill('seigo', { to, title: 'あ'.repeat(51) }), 'title')
+      await expectNotCreated(await createBill('seigo', { to, memo: 'あ'.repeat(501) }), 'memo')
+      const res = await createBill('seigo', { to, title: 'あ'.repeat(50), memo: 'い'.repeat(500) })
+      expect(res.status).toBe(201)
+    })
+
+    it('[MONEY-F-001/AC-17] 日本時間 2026-10-05 00:30（UTC 2026-10-04 15:30）に発生日 2026-10-05 で請求すると、請求中の請求ができる', async () => {
+      now = new Date('2026-10-04T15:30:00Z')
+      const res = await createBill('seigo', { to: t.family.mother.id, occurredOn: '2026-10-05' })
+      expect(res.status).toBe(201)
+      expect(billSummarySchema.parse(await res.json()).status).toBe('requested')
+    })
+
+    it('[MONEY-F-001/AC-18] 発生日 2019-12-31 では作られず、2020-01-01 なら作られる', async () => {
+      const to = t.family.mother.id
+      await expectNotCreated(
+        await createBill('seigo', { to, occurredOn: '2019-12-31' }),
+        'occurredOn',
+        '2020-01-01 以降の日付を選んでください',
+      )
+      expect((await createBill('seigo', { to, occurredOn: '2020-01-01' })).status).toBe(201)
+    })
+
+    // AC ではない確認（tasks.md D-2）
+    it('存在しない家族の ID は 400（請求先に「選び直してください」）', async () => {
+      await expectNotCreated(
+        await createBill('seigo', { to: crypto.randomUUID() }),
+        'to',
+        '選び直してください',
+      )
+    })
+
+    it('判定の順：親でない家族が「家庭」の名義で請求先「父」を選んだら 403', async () => {
+      await expectError(
+        await createBill('seigo', { as: 'household', to: t.family.father.id }),
+        403,
+        'forbidden',
+      )
+    })
+
+    it('親は「家庭」として息子に、息子は「家庭」に請求できる', async () => {
+      expect((await createBill('father', { as: 'household', to: t.family.seigo.id })).status).toBe(
+        201,
+      )
+      expect((await createBill('kugo', { to: 'household' })).status).toBe(201)
     })
   })
 })
