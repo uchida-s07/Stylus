@@ -23,11 +23,13 @@ async function addCategory(name: string) {
   await userEvent.click(screen.getByRole('button', { name: '追加する' }))
 }
 
-async function deleteSchool(choice: '削除する' | 'キャンセル') {
-  await userEvent.click(await screen.findByRole('button', { name: '学費を削除' }))
-  const dialog = await screen.findByRole('dialog', { name: '「学費」を削除しますか？' })
+async function deleteCategory(name: string, choice: '削除する' | 'キャンセル') {
+  await userEvent.click(await screen.findByRole('button', { name: `${name}を削除` }))
+  const dialog = await screen.findByRole('dialog', { name: `「${name}」を削除しますか？` })
   await userEvent.click(within(dialog).getByRole('button', { name: choice }))
 }
+
+const deleteSchool = (choice: '削除する' | 'キャンセル') => deleteCategory('学費', choice)
 
 describe('カテゴリーの画面（MONEY-F-013・014）', () => {
   beforeEach(() => {
@@ -57,7 +59,7 @@ describe('カテゴリーの画面（MONEY-F-013・014）', () => {
     )
   })
 
-  it('[MONEY-F-014/AC-2] 請求に使われているカテゴリーを削除すると「このカテゴリーは請求で使われているため削除できません」と出る', async () => {
+  it('[MONEY-F-014/AC-2] 取消の請求に使われているカテゴリー「食費」を削除すると「このカテゴリーは請求で使われているため削除できません」と出る', async () => {
     openCategories({
       'DELETE /bill-categories/:id': errorResponse(
         409,
@@ -65,12 +67,12 @@ describe('カテゴリーの画面（MONEY-F-013・014）', () => {
         'このカテゴリーは請求で使われているため削除できません',
       ),
     })
-    await deleteSchool('削除する')
+    await deleteCategory('食費', '削除する')
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'このカテゴリーは請求で使われているため削除できません',
     )
-    expect(screen.getByText('学費')).toBeInTheDocument()
+    expect(screen.getByText('食費')).toBeInTheDocument()
   })
 
   it('[MONEY-F-014/AC-3] 削除を押し、確認で「キャンセル」を選ぶと「学費」は残る', async () => {

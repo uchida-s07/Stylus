@@ -284,16 +284,6 @@ describe('精算の API', () => {
       expect(await statusOf(settled.id)).toBe('paid')
     })
 
-    it('[MONEY-F-009/AC-5] 精算に含まれる せいご→母 の請求を、せいごがその1件だけ戻そうとすると、戻せず支払済のまま', async () => {
-      const { bill: settled } = await settledBills()
-      await expectError(
-        await t.call('seigo', 'POST', `/bills/${settled.id}/revert`, { version: 2 }),
-        409,
-        'state_changed',
-      )
-      expect(await statusOf(settled.id)).toBe('paid')
-    })
-
     // AC ではない確認
     it('「家庭」の名義でも払える（家庭がせいごに 2,500円 を父が払う）', async () => {
       await bill('seigo', null, 4000)
@@ -469,6 +459,19 @@ describe('精算の API', () => {
   describe('精算ごと戻す（MONEY-F-009）', () => {
     const revertAll = (who: FamilyKey, id: string) =>
       t.call(who, 'POST', `/settlements/${id}/revert`, {})
+
+    it('[MONEY-F-009/AC-5] AC-3 の精算に含まれる せいご→母 の請求を、せいごがその1件だけ戻そうとすると、戻せず、2件とも支払済のまま', async () => {
+      const s = await f009ac3Settlement()
+      const [target] = s.bills
+      const [row] = await t.db.select().from(bills).where(eq(bills.id, target!.id))
+      await expectError(
+        await t.call('seigo', 'POST', `/bills/${target!.id}/revert`, { version: row!.version }),
+        409,
+        'state_changed',
+      )
+      for (const b of s.bills) expect(await statusOf(b.id)).toBe('paid')
+      expect(await pendingOf('seigo')).toHaveLength(1)
+    })
 
     it('[MONEY-F-009/AC-3] せいごが精算の「受け取っていない」を選ぶと、2件とも請求中に戻る', async () => {
       const s = await f009ac3Settlement()

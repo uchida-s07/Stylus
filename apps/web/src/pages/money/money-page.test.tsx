@@ -65,7 +65,10 @@ describe('お金の画面（MONEY-F-004）', () => {
   })
 
   it('[MONEY-F-004/AC-4] くうごが関係する請求が1件も無いと、「請求はありません」と出て、合計はどちらも 0円', async () => {
-    installMoneyApi({ 'GET /bills': () => json(listResponse()) })
+    installMoneyApi({
+      'GET /me': meRoute(meOf('kugo')),
+      'GET /bills': () => json(listResponse()),
+    })
     renderApp('/money')
 
     expect(await screen.findByText('請求はありません')).toBeInTheDocument()
@@ -150,7 +153,8 @@ describe('お金の画面（MONEY-F-004）', () => {
     await screen.findByText('請求はありません')
 
     await userEvent.click(screen.getByRole('button', { name: 'メニュー' }))
-    await userEvent.click(await screen.findByRole('menuitem', { name }))
+    // メニューは開く動きが終わるまで隠れている。テスト全体を回して重いときは既定の 1 秒を超えることがあるので長めに待つ
+    await userEvent.click(await screen.findByRole('menuitem', { name }, { timeout: 5000 }))
     expect(router.state.location.pathname).toBe(path)
   })
 
