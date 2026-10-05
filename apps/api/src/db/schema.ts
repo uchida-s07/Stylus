@@ -2,6 +2,7 @@ import { BILL_EVENT_KINDS, BILL_STATUSES, SETTLEMENT_STATUSES } from '@stylus/sh
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   check,
   date,
@@ -158,6 +159,8 @@ export const billEvents = pgTable(
   'bill_events',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    // 足した順（同じ日時の経過を並べるため）
+    seq: bigint('seq', { mode: 'number' }).notNull().generatedAlwaysAsIdentity(),
     billId: uuid('bill_id')
       .notNull()
       .references(() => bills.id, RESTRICT),
@@ -178,6 +181,6 @@ export const billEvents = pgTable(
       'bill_events_settlement_valid',
       sql`(${t.kind} like 'settle%') = (${t.settlementId} is not null)`,
     ),
-    index('bill_events_bill_idx').on(t.billId, t.createdAt),
+    index('bill_events_bill_idx').on(t.billId, t.createdAt, t.seq),
   ],
 ).enableRLS()

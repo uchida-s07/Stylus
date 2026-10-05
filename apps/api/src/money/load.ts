@@ -56,7 +56,7 @@ export async function loadBillDetail(
     .leftJoin(payer, eq(settlements.payerMemberId, payer.id))
     .leftJoin(receiver, eq(settlements.receiverMemberId, receiver.id))
     .where(eq(billEvents.billId, id))
-    .orderBy(asc(billEvents.createdAt), asc(billEvents.id))
+    .orderBy(asc(billEvents.createdAt), asc(billEvents.seq))
 
   return {
     ...toBillSummary(row),

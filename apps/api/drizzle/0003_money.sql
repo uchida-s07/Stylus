@@ -9,6 +9,7 @@ CREATE TABLE "bill_categories" (
 ALTER TABLE "bill_categories" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "bill_events" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"seq" bigint GENERATED ALWAYS AS IDENTITY (sequence name "bill_events_seq_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"bill_id" uuid NOT NULL,
 	"kind" text NOT NULL,
 	"actor_member_id" uuid NOT NULL,
@@ -81,7 +82,7 @@ ALTER TABLE "settlements" ADD CONSTRAINT "settlements_receiver_member_id_members
 ALTER TABLE "settlements" ADD CONSTRAINT "settlements_paid_by_members_id_fk" FOREIGN KEY ("paid_by") REFERENCES "public"."members"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "settlements" ADD CONSTRAINT "settlements_confirmed_by_members_id_fk" FOREIGN KEY ("confirmed_by") REFERENCES "public"."members"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "settlements" ADD CONSTRAINT "settlements_reverted_by_members_id_fk" FOREIGN KEY ("reverted_by") REFERENCES "public"."members"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "bill_events_bill_idx" ON "bill_events" USING btree ("bill_id","created_at");--> statement-breakpoint
+CREATE INDEX "bill_events_bill_idx" ON "bill_events" USING btree ("bill_id","created_at","seq");--> statement-breakpoint
 CREATE INDEX "bills_from_idx" ON "bills" USING btree ("from_member_id","status");--> statement-breakpoint
 CREATE INDEX "bills_to_idx" ON "bills" USING btree ("to_member_id","status");--> statement-breakpoint
 CREATE INDEX "bills_settlement_idx" ON "bills" USING btree ("settlement_id");--> statement-breakpoint

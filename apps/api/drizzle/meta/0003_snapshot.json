@@ -1,5 +1,5 @@
 {
-  "id": "7e7c835c-a3cc-4c4a-9e1c-ec5bb1704e70",
+  "id": "0e0ba00e-73cc-4a1f-b08b-60e338506963",
   "prevId": "19bcd1b0-5fd2-4b41-966b-2b4937488295",
   "version": "7",
   "dialect": "postgresql",
@@ -61,6 +61,23 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "seq": {
+          "name": "seq",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "bill_events_seq_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
         "bill_id": {
           "name": "bill_id",
           "type": "uuid",
@@ -111,6 +128,12 @@
             },
             {
               "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "seq",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
