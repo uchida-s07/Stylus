@@ -85,6 +85,7 @@ erDiagram
     text reason "差し戻しのときだけ"
     uuid settlement_id "NULL 可"
     timestamptz created_at
+    bigint seq "足した順の通し番号。同じ日時の経過の並び順に使う"
   }
   settlements {
     uuid id PK
