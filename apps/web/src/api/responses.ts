@@ -13,17 +13,30 @@ export type ApiResult<T> =
   | { kind: 'network' }
   | { kind: 'failed'; status: number; error?: ApiError['error'] }
 
-type ResponseLike<T> = { ok: boolean; status: number; json(): Promise<T> }
+type ResponseLike = { ok: boolean; status: number; json(): Promise<unknown> }
 
-export async function callApi<T>(request: () => Promise<ResponseLike<T>>): Promise<ApiResult<T>> {
-  let res: ResponseLike<T>
+// 成功の応答の本文の型。Hono RPC の応答の型のうち、ok が false（失敗の状態）のものを除く
+type SuccessBody<R> = R extends { ok: false }
+  ? never
+  : R extends { json(): Promise<infer T> }
+    ? T
+    : never
+
+export async function callApi<R extends ResponseLike>(
+  request: () => Promise<R>,
+): Promise<ApiResult<SuccessBody<R>>> {
+  let res: R
   try {
     res = await request()
   } catch (error) {
     if (error instanceof NetworkError) return { kind: 'network' }
     throw error
   }
-  if (res.ok) return { kind: 'ok', data: await res.json() }
+  if (res.ok) {
+    // 204（本文なし）は data を undefined にする
+    const data = res.status === 204 ? undefined : await res.json()
+    return { kind: 'ok', data: data as SuccessBody<R> }
+  }
 
   const body = apiErrorSchema.safeParse(await res.json().catch(() => undefined))
   const error = body.success ? body.data.error : undefined

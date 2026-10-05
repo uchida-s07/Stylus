@@ -10,6 +10,11 @@ describe('callApi', () => {
     expect(await callApi(respond(200, { a: 1 }))).toEqual({ kind: 'ok', data: { a: 1 } })
   })
 
+  it('204（本文なし）なら data は undefined', async () => {
+    const res = async () => new Response(null, { status: 204 })
+    expect(await callApi(res)).toEqual({ kind: 'ok', data: undefined })
+  })
+
   it('403 not_a_member は未登録', async () => {
     const res = respond(403, { error: { code: 'not_a_member', message: 'x' } })
     expect(await callApi(res)).toEqual({ kind: 'unregistered' })
