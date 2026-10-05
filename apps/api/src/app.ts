@@ -9,6 +9,7 @@ import { memberMiddleware } from './middleware/member'
 import { billCategoriesRoute } from './routes/bill-categories'
 import { billsRoute } from './routes/bills'
 import { membersRoute } from './routes/members'
+import { settlementsRoute } from './routes/settlements'
 import { meRoute } from './routes/me'
 
 export type AppConfig = {
@@ -35,6 +36,7 @@ export function createApp(config: AppConfig) {
     .route('/me', meRoute)
     .route('/members', membersRoute)
     .route('/bills', billsRoute(config))
+    .route('/settlements', settlementsRoute(config))
     .route('/bill-categories', billCategoriesRoute)
 }
 

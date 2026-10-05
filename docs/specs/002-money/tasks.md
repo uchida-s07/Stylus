@@ -162,11 +162,11 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
   - Red: 2026-10-05 実行。中身の無い `revert`（関係者の判定だけして 200 で `{}`）で 3件失敗：AC-1・AC-2 は応答が `{}`（請求中に戻らない・経過が無い）、AC-4 は確認済でも 409 でなく 200
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
-- [ ] T-17: 精算額（相手ごとの差し引き）
+- [x] T-17: 精算額（相手ごとの差し引き）
   - 対応: MONEY-F-010 / AC-1（API）, AC-2, AC-5, AC-6, AC-7
   - 対象ファイル: `apps/api/src/money/settlements.ts`、`apps/api/src/routes/settlements.ts`、`apps/api/src/routes/settlements.test.ts`、`apps/api/src/app.ts`
   - 内容: `GET /settlements/preview?as=…&counterpart=…`。2者の間の請求中の請求（両方向）と、`packages/shared` の計算による小計・払う側・精算額。`preview` を `:id` より先に登録する。判定の順は D-2
-  - Red: 未記録（想定：中身の無い形で、AC-1 の小計・精算額が返らない、AC-2 で せいご→母 が入る、AC-5 が 403 にならない、AC-6・AC-7 が 400 にならない）
+  - Red: 2026-10-05 実行。中身の無い形（`GET /settlements/preview` が 200 で `{}`）で 8件失敗：AC-1・AC-2 は応答が `{}`（小計・精算額が無い ZodError）、AC-5 は 403 でなく 200、AC-6・AC-7 は 400 でなく 200、タグなしの3件（請求が無いとき・存在しない家族の ID・息子と「家庭」）も同じ
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
 - [ ] T-18: まとめて払った
