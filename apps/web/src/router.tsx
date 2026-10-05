@@ -5,6 +5,7 @@ import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { BillDetailPage } from './pages/money/BillDetailPage'
+import { BillEditPage } from './pages/money/BillEditPage'
 import { BillNewPage } from './pages/money/BillNewPage'
 import { MoneyPage } from './pages/money/MoneyPage'
 
@@ -21,6 +22,7 @@ export const routes: RouteObject[] = [
           { path: '/money', element: <MoneyPage /> },
           { path: '/money/bills/new', element: <BillNewPage /> },
           { path: '/money/bills/:id', element: <BillDetailPage /> },
+          { path: '/money/bills/:id/edit', element: <BillEditPage /> },
         ],
       },
       { element: <RedirectIfSignedIn />, children: [{ path: '/login', element: <LoginPage /> }] },

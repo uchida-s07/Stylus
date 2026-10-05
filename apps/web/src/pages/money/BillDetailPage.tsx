@@ -21,6 +21,7 @@ import { ErrorScreen } from '../../components/ErrorScreen'
 import { Loading } from '../../components/Loading'
 import { ConfirmDialog } from './ConfirmDialog'
 import { NoticeScreen } from './NoticeScreen'
+import { ReturnDialog } from './ReturnDialog'
 import {
   BILL_CHANGED,
   EVENT_LABELS,
@@ -109,6 +110,7 @@ function BillDetailView({ initial }: { initial: BillDetail }) {
   const [bill, setBill] = useState(initial)
   const [notice, setNotice] = useState<string>()
   const [confirming, setConfirming] = useState<ConfirmAction>()
+  const [returning, setReturning] = useState(false)
   const leaveAsUnregistered = useLeaveAsUnregistered()
 
   const inSettlement = bill.settlementId !== null
@@ -116,29 +118,49 @@ function BillDetailView({ initial }: { initial: BillDetail }) {
   const confirmActions = actions.filter((a): a is ConfirmAction => a !== 'edit' && a !== 'return')
 
   // 操作の結果を画面に反映する。409 なら取り直して、状態が同じなら「中身が変わりました」、違えば「状態が変わりました」
-  async function apply(result: ApiResult<BillDetail>) {
+  // 戻り値は、画面が最新になったか（成功・409）。書き込みに失敗したときは false
+  async function apply(result: ApiResult<BillDetail>): Promise<boolean> {
     if (result.kind === 'ok') {
       setBill(result.data)
       setNotice(undefined)
-      return
+      return true
     }
-    if (result.kind === 'unregistered') return void (await leaveAsUnregistered())
-    if (result.kind === 'network') return setNotice(WRITE_MESSAGES.network)
+    if (result.kind === 'unregistered') {
+      await leaveAsUnregistered()
+      return true
+    }
+    if (result.kind === 'network') {
+      setNotice(WRITE_MESSAGES.network)
+      return false
+    }
     if (result.status === 409) {
       const latest = await callApi(() => api.bills[':id'].$get({ param: { id: bill.id } }))
       if (latest.kind === 'ok') {
         setNotice(latest.data.status === bill.status ? BILL_CHANGED.content : BILL_CHANGED.state)
         setBill(latest.data)
-        return
+      } else {
+        setNotice(BILL_CHANGED.state)
       }
-      return setNotice(BILL_CHANGED.state)
+      return true
     }
     setNotice(WRITE_MESSAGES.failed)
+    return false
   }
 
   async function run(action: ConfirmAction) {
     await apply(await callApi(() => postAction(action, bill.id, bill.version)))
     setConfirming(undefined)
+  }
+
+  // 差し戻す：保存できなかったときは理由の入力を残す（閉じない）
+  async function giveBack(reason: string) {
+    const result = await callApi(() =>
+      api.bills[':id'].return.$post({
+        param: { id: bill.id },
+        json: { version: bill.version, reason },
+      }),
+    )
+    if (await apply(result)) setReturning(false)
   }
 
   return (
@@ -195,6 +217,17 @@ function BillDetailView({ initial }: { initial: BillDetail }) {
             </Button>
           )
         })}
+        {actions.includes('return') && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              setNotice(undefined)
+              setReturning(true)
+            }}
+          >
+            差し戻す
+          </Button>
+        )}
         {inSettlement && (
           <Button component={Link} to={`/money/settlements/${bill.settlementId}`} variant="light">
             精算の中身を見る
@@ -223,6 +256,14 @@ function BillDetailView({ initial }: { initial: BillDetail }) {
           ))}
         </List>
       </Stack>
+      {returning && (
+        <ReturnDialog
+          version={bill.version}
+          notice={notice}
+          onClose={() => setReturning(false)}
+          onSubmit={giveBack}
+        />
+      )}
       {confirming && (
         <ConfirmDialog
           opened

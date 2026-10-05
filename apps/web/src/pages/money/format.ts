@@ -43,8 +43,9 @@ export const EVENT_LABELS: Record<BillEvent['kind'], string> = {
   not_received: '受け取っていない',
   settled_paid: '精算でまとめて払った',
   settled_confirmed: '精算でまとめて受け取った',
-  settlement_payment_canceled: '払ったを取り消した（精算ごと）',
-  settlement_not_received: '受け取っていない（精算ごと）',
+  // 精算ごと戻したものは、経過の下に精算の相手と精算額を出す
+  settlement_payment_canceled: '払ったを取り消した',
+  settlement_not_received: '受け取っていない',
 }
 
 // 精算額：「母がせいごに 2,500円」
