@@ -2,6 +2,7 @@ import {
   apiErrorSchema,
   billDetailSchema,
   billListResponseSchema,
+  settlementDetailSchema,
   settlementPreviewSchema,
   type SettlementPreview,
 } from '@stylus/shared'
@@ -9,7 +10,7 @@ import { count, eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { FamilyKey } from '../../test/family'
 import { createMoneyTestApp, type MoneyTestApp } from '../../test/money'
-import { bills, settlements } from '../db/schema'
+import { billEvents, bills, settlements } from '../db/schema'
 
 const NOW = new Date('2026-10-04T03:00:00Z')
 
@@ -363,6 +364,90 @@ describe('精算の API', () => {
         'state_changed',
       )
       expect(await countSettlements()).toBe(0)
+    })
+  })
+
+  // MONEY-F-011/AC-1 で払われた精算（母がせいごに 2,500円）
+  async function paidSettlement() {
+    const given = await f010ac1Bills()
+    const res = await payAll('mother', 'seigo', await previewOk('mother', 'seigo'))
+    expect(res.status).toBe(201)
+    const { id } = (await res.json()) as { id: string }
+    return { id, bills: given.requested }
+  }
+
+  async function settledConfirmedEvents(billId: string) {
+    const rows = await t.db.select().from(billEvents).where(eq(billEvents.billId, billId))
+    return rows.filter((e) => e.kind === 'settled_confirmed').length
+  }
+
+  describe('精算の中身とまとめて受け取った（MONEY-F-012）', () => {
+    const confirmAll = (who: FamilyKey, id: string) =>
+      t.call(who, 'POST', `/settlements/${id}/confirm`, {})
+
+    it('[MONEY-F-012/AC-1] せいごが「まとめて受け取った」にすると、含まれる3件がすべて確認済になり、受け取り待ちの精算が消える', async () => {
+      const s = await paidSettlement()
+      const res = await confirmAll('seigo', s.id)
+      expect(res.status).toBe(200)
+      expect(settlementDetailSchema.parse(await res.json()).status).toBe('confirmed')
+      for (const b of s.bills) expect(await statusOf(b.id)).toBe('confirmed')
+      expect(await pendingOf('seigo')).toEqual([])
+    })
+
+    it('[MONEY-F-012/AC-2] 母（払った側）が「まとめて受け取った」の API を呼ぶと、403 で3件とも支払済のまま', async () => {
+      const s = await paidSettlement()
+      await expectError(await confirmAll('mother', s.id), 403, 'forbidden')
+      for (const b of s.bills) expect(await statusOf(b.id)).toBe('paid')
+    })
+
+    it('[MONEY-F-012/AC-4] すでに受け取った精算をもう一度「まとめて受け取った」にしようとすると、受け取れず、経過の「精算でまとめて受け取った」は各請求に1回だけ', async () => {
+      const s = await paidSettlement()
+      expect((await confirmAll('seigo', s.id)).status).toBe(200)
+      await expectError(await confirmAll('seigo', s.id), 409, 'state_changed')
+      for (const b of s.bills) expect(await settledConfirmedEvents(b.id)).toBe(1)
+    })
+
+    it('[MONEY-F-012/AC-5] 3件を確認済にする途中で保存に失敗すると、3件とも支払済のままで、受け取り待ちの精算が残る', async () => {
+      const s = await paidSettlement()
+      await failBillUpdateAt(2)
+      expect((await confirmAll('seigo', s.id)).status).toBe(500)
+      for (const b of s.bills) expect(await statusOf(b.id)).toBe('paid')
+      expect(await pendingOf('seigo')).toHaveLength(1)
+    })
+
+    it('[MONEY-F-012/AC-6] 存在しない精算の ID を開くと 404 not_found（「この精算は見つかりません」）', async () => {
+      const res = await t.call('seigo', 'GET', `/settlements/${crypto.randomUUID()}`)
+      const error = await expectError(res, 404, 'not_found')
+      expect(error.message).toBe('この精算は見つかりません')
+    })
+
+    it('[MONEY-N-001/AC-5] せいごと母の間の精算の中身と「まとめて受け取った」を、くうごが呼ぶと、どちらも 404', async () => {
+      const s = await paidSettlement()
+      await expectError(await t.call('kugo', 'GET', `/settlements/${s.id}`), 404, 'not_found')
+      await expectError(await confirmAll('kugo', s.id), 404, 'not_found')
+      for (const b of s.bills) expect(await statusOf(b.id)).toBe('paid')
+    })
+
+    // AC ではない確認
+    it('精算の中身：相手・精算額・含まれる請求・自分の側', async () => {
+      const s = await paidSettlement()
+      const res = await t.call('seigo', 'GET', `/settlements/${s.id}`)
+      expect(res.status).toBe(200)
+      const d = settlementDetailSchema.parse(await res.json())
+      expect(d).toMatchObject({
+        payer: { name: '母' },
+        receiver: { name: 'せいご' },
+        amount: 2500,
+        status: 'paid',
+        paidByName: '母',
+        confirmedByName: null,
+        sides: ['receiver'],
+      })
+      expect(d.bills.map((b) => b.id).sort()).toEqual(s.bills.map((b) => b.id).sort())
+    })
+
+    it('/settlements/preview は精算の ID として扱わない（:id は uuid の形でなければ 404）', async () => {
+      await expectError(await t.call('seigo', 'GET', '/settlements/abc'), 404, 'not_found')
     })
   })
 })

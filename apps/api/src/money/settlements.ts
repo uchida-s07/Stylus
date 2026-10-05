@@ -3,15 +3,21 @@ import {
   MONEY_MESSAGES,
   type As,
   type PartyRef,
+  findSettlementTransition,
+  settlementActionSides,
+  type SettlementAction,
+  type SettlementDetail,
   type SettlementInput,
   type SettlementPreview,
+  type SettlementSide,
 } from '@stylus/shared'
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import type { Db } from '../db/client'
 import { billEvents, bills, members, settlements } from '../db/schema'
 import type { Member } from '../env'
 import { fail, failInput } from '../errors'
-import { partyIs, type PartyId } from './parties'
+import { partyIs, settlementSidesOf, type PartyId } from './parties'
 import { partyOf, selectBillRows, toBillSummary, type BillRow, type Executor } from './summaries'
 
 // 精算の2者（名義の側 self と相手 counterpart）
@@ -154,4 +160,149 @@ export async function createSettlement(
     )
     return { id: settlementId }
   })
+}
+
+export const SETTLEMENT_NOT_FOUND = 'この精算は見つかりません'
+
+type SettlementRecord = typeof settlements.$inferSelect
+
+// 精算を読み、関係者でなければ（無ければ）404 not_found（MONEY-N-001）
+async function loadRelatedSettlement(
+  db: Executor,
+  member: Member,
+  id: string,
+): Promise<{ settlement: SettlementRecord; sides: SettlementSide[] }> {
+  const [settlement] = await db.select().from(settlements).where(eq(settlements.id, id))
+  const sides = settlement
+    ? settlementSidesOf(member, settlement.payerMemberId, settlement.receiverMemberId)
+    : []
+  if (!settlement || sides.length === 0) fail(404, 'not_found', SETTLEMENT_NOT_FOUND)
+  return { settlement, sides }
+}
+
+// 精算に含まれた請求の ID（戻した後も経過から分かる）
+async function settlementBillIds(db: Executor, id: string): Promise<string[]> {
+  const rows = await db
+    .select({ billId: billEvents.billId })
+    .from(billEvents)
+    .where(and(eq(billEvents.settlementId, id), eq(billEvents.kind, 'settled_paid')))
+  return rows.map((r) => r.billId)
+}
+
+const payer = alias(members, 'payer')
+const receiver = alias(members, 'receiver')
+const paidBy = alias(members, 'paid_by')
+const confirmedBy = alias(members, 'confirmed_by')
+const revertedBy = alias(members, 'reverted_by')
+
+// 精算の中身（MONEY-F-012）
+export async function loadSettlementDetail(
+  db: Executor,
+  member: Member,
+  id: string,
+): Promise<SettlementDetail> {
+  const { sides } = await loadRelatedSettlement(db, member, id)
+  const [row] = await db
+    .select({
+      s: settlements,
+      payerName: payer.displayName,
+      receiverName: receiver.displayName,
+      paidByName: paidBy.displayName,
+      confirmedByName: confirmedBy.displayName,
+      revertedByName: revertedBy.displayName,
+    })
+    .from(settlements)
+    .leftJoin(payer, eq(settlements.payerMemberId, payer.id))
+    .leftJoin(receiver, eq(settlements.receiverMemberId, receiver.id))
+    .innerJoin(paidBy, eq(settlements.paidBy, paidBy.id))
+    .leftJoin(confirmedBy, eq(settlements.confirmedBy, confirmedBy.id))
+    .leftJoin(revertedBy, eq(settlements.revertedBy, revertedBy.id))
+    .where(eq(settlements.id, id))
+  if (!row) fail(404, 'not_found', SETTLEMENT_NOT_FOUND)
+
+  const ids = await settlementBillIds(db, id)
+  const billRows =
+    ids.length === 0
+      ? []
+      : await selectBillRows(db)
+          .where(inArray(bills.id, ids))
+          .orderBy(desc(bills.occurredOn), desc(bills.createdAt))
+  const { s } = row
+  return {
+    id: s.id,
+    payer: partyOf(s.payerMemberId, row.payerName),
+    receiver: partyOf(s.receiverMemberId, row.receiverName),
+    amount: s.amount,
+    status: s.status,
+    paidByName: row.paidByName,
+    paidAt: s.paidAt.toISOString(),
+    confirmedByName: row.confirmedByName,
+    confirmedAt: s.confirmedAt?.toISOString() ?? null,
+    revertedByName: row.revertedByName,
+    revertedAt: s.revertedAt?.toISOString() ?? null,
+    bills: billRows.map(toBillSummary),
+    sides,
+  }
+}
+
+// 精算の操作（まとめて受け取った・精算ごと戻す）。精算と含まれる請求を1つのトランザクションで更新する
+// 精算の状態を条件にした更新で、二重の操作を防ぐ
+export async function operateSettlement(
+  db: Db,
+  member: Member,
+  id: string,
+  action: SettlementAction,
+  now: Date,
+): Promise<SettlementDetail> {
+  const { settlement, sides } = await loadRelatedSettlement(db, member, id)
+
+  const allowedSides = settlementActionSides(action)
+  const mySides = sides.filter((s) => allowedSides.includes(s))
+  if (mySides.length === 0) fail(403, 'forbidden', 'この操作をする権限がありません')
+
+  const side = mySides.find((s) => findSettlementTransition(action, s, settlement.status))
+  const transition = side && findSettlementTransition(action, side, settlement.status)
+  if (!transition) fail(409, 'state_changed', SETTLEMENT_CHANGED)
+
+  await db.transaction(async (tx) => {
+    const stamp =
+      transition.to === 'confirmed'
+        ? { confirmedBy: member.id, confirmedAt: now }
+        : { revertedBy: member.id, revertedAt: now }
+    const updated = await tx
+      .update(settlements)
+      .set({ status: transition.to, ...stamp })
+      .where(and(eq(settlements.id, id), eq(settlements.status, settlement.status)))
+      .returning({ id: settlements.id })
+    if (updated.length === 0) fail(409, 'state_changed', SETTLEMENT_CHANGED)
+
+    // 含まれる請求：受け取ったなら確認済に、戻すなら請求中に戻して精算から外す
+    const changed = await tx
+      .update(bills)
+      .set(
+        transition.to === 'confirmed'
+          ? { status: 'confirmed', version: sql`${bills.version} + 1`, updatedAt: now }
+          : {
+              status: 'requested',
+              settlementId: null,
+              version: sql`${bills.version} + 1`,
+              updatedAt: now,
+            },
+      )
+      .where(and(eq(bills.settlementId, id), eq(bills.status, 'paid')))
+      .returning({ id: bills.id })
+
+    if (changed.length > 0) {
+      await tx.insert(billEvents).values(
+        changed.map(({ id: billId }) => ({
+          billId,
+          kind: transition.event,
+          actorMemberId: member.id,
+          settlementId: id,
+          createdAt: now,
+        })),
+      )
+    }
+  })
+  return loadSettlementDetail(db, member, id)
 }
