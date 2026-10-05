@@ -11,7 +11,7 @@ import type { AppConfig } from '../app'
 import type { AppHono } from '../env'
 import { createBill, editBill } from '../money/bills'
 import { listBills } from '../money/list'
-import { BILL_NOT_FOUND, loadBillDetail, loadRelatedBill } from '../money/load'
+import { BILL_NOT_FOUND, loadBillDetail } from '../money/load'
 import { operateBill } from '../money/operate'
 import { idParam, jsonBody, queryInput } from '../validate'
 
@@ -64,9 +64,12 @@ export function billsRoute(config: Pick<AppConfig, 'now'>) {
           await operateBill(c.var.db, c.var.member, id, 'return', { version, now, reason }),
         )
       })
-      .post('/:id/cancel', idParam(BILL_NOT_FOUND), async (c) => {
-        await loadRelatedBill(c.var.db, c.var.member, c.req.valid('param').id)
-        return c.json({}, 200)
+      // 取り消す（MONEY-F-003）
+      .post('/:id/cancel', idParam(BILL_NOT_FOUND), jsonBody(billActionInputSchema), async (c) => {
+        const { id } = c.req.valid('param')
+        const { version } = c.req.valid('json')
+        const now = config.now()
+        return c.json(await operateBill(c.var.db, c.var.member, id, 'cancel', { version, now }))
       })
   )
 }

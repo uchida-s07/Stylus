@@ -694,4 +694,45 @@ describe('請求の API', () => {
       expect(error.fields?.categoryId).toBe('カテゴリーが見つかりません。選び直してください')
     })
   })
+
+  describe('取り消す（MONEY-F-003）', () => {
+    const cancel = (who: FamilyKey, id: string, version = 1) =>
+      t.call(who, 'POST', `/bills/${id}/cancel`, { version })
+
+    it('[MONEY-F-003/AC-1] せいごが せいご→母 3,000円 を取り消すと、取消になり、せいごの「受け取る額の合計」と母の「払う額の合計」から外れる', async () => {
+      const bill = await t.insertBill({ amount: 3000 })
+      const res = await cancel('seigo', bill.id)
+      expect(res.status).toBe(200)
+      expect(billDetailSchema.parse(await res.json()).status).toBe('canceled')
+      expect((await list('seigo')).totals.self.receive).toBe(0)
+      expect((await list('mother')).totals.self.pay).toBe(0)
+    })
+
+    it('[MONEY-F-003/AC-3] 支払済の請求を取り消す API を呼ぶと、取り消せず支払済のまま', async () => {
+      const bill = await t.insertBill({ status: 'paid' })
+      await expectError(await cancel('seigo', bill.id), 409, 'state_changed')
+      expect((await billRow(bill.id)).status).toBe('paid')
+    })
+
+    it('[MONEY-F-003/AC-4] 母（請求先）が取り消す API を呼ぶと、403 で請求中のまま', async () => {
+      const bill = await t.insertBill()
+      await expectError(await cancel('mother', bill.id), 403, 'forbidden')
+      expect((await billRow(bill.id)).status).toBe('requested')
+    })
+
+    it('[MONEY-F-003/AC-5] すでに取消の請求をもう一度取り消す API を呼ぶと、取り消せず、経過の「取り消した」は1回だけ', async () => {
+      const bill = await t.insertBill()
+      expect((await cancel('seigo', bill.id, 1)).status).toBe(200)
+      await expectError(await cancel('seigo', bill.id, 2), 409, 'state_changed')
+      const d = await detail('seigo', bill.id)
+      expect(d.events.filter((e) => e.kind === 'canceled')).toHaveLength(1)
+    })
+
+    // AC ではない確認
+    it('差し戻しの請求も取り消せる', async () => {
+      const bill = await t.insertBill({ status: 'returned' })
+      expect((await cancel('seigo', bill.id)).status).toBe(200)
+      expect((await billRow(bill.id)).status).toBe('canceled')
+    })
+  })
 })
