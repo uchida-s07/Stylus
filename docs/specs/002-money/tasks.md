@@ -82,11 +82,11 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
 
 ## 3. API
 
-- [ ] T-5: カテゴリーの一覧・追加・削除の API
+- [x] T-5: カテゴリーの一覧・追加・削除の API
   - 対応: MONEY-F-013 / AC-1, AC-2, AC-3, AC-4, AC-5、MONEY-F-014 / AC-1, AC-2, AC-4, AC-5
   - 対象ファイル: `apps/api/src/routes/bill-categories.ts`、`apps/api/src/routes/bill-categories.test.ts`、`apps/api/src/app.ts`、`apps/api/test/family.ts`
   - 内容: `GET /bill-categories`・`POST /bill-categories`（409 `duplicate_name`）・`DELETE /bill-categories/:id`（外部キーの違反で 409 `in_use`、無ければ 404 `not_found`）。F-014/AC-4 は「確認を開いた後に請求が登録された」を、削除の要求の前に DB へ請求を入れて再現する
-  - Red: 未記録（想定：中身の無いルートで、AC-1 の一覧に「学費」が無い、AC-2 の5つが返らない、AC-3〜5 が 400/409 にならず 200、F-014/AC-2・AC-4 が 409 `in_use` にならない、AC-5 が `not_found` にならない）
+  - Red: 2026-10-05 実行。中身の無いルート（一覧は空、追加・削除は 200 で何もしない）で 10件失敗：F-013/AC-1 は追加が 201 でなく 200、AC-2 は一覧が `[]`、AC-3・AC-5 は一覧に5つ無い（入力の検証は中身の無い形にも置いたので 400 は通っていた）、AC-4 は 409 でなく 200、F-014/AC-1・AC-5 は削除が 204 でなく 200、AC-2・AC-4 は 409 `in_use` でなく 200
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
 - [ ] T-6: 請求の登録と一覧の基本・家族の一覧

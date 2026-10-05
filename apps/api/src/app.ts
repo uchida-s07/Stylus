@@ -6,6 +6,7 @@ import { corsMiddleware } from './middleware/cors'
 import { errorHandler } from './middleware/error'
 import { dbMiddleware } from './middleware/db'
 import { memberMiddleware } from './middleware/member'
+import { billCategoriesRoute } from './routes/bill-categories'
 import { meRoute } from './routes/me'
 
 export type AppConfig = {
@@ -28,6 +29,7 @@ export function createApp(config: AppConfig) {
     .use(dbMiddleware(config.openDb))
     .use(memberMiddleware())
     .route('/me', meRoute)
+    .route('/bill-categories', billCategoriesRoute)
 }
 
 // フロントの Hono RPC（hc<AppType>）が import type で使う
