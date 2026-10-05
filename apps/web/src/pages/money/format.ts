@@ -51,3 +51,11 @@ export const EVENT_LABELS: Record<BillEvent['kind'], string> = {
 export function settlementLabel(payer: Party, receiver: Party, amount: number): string {
   return `${payer.name}が${receiver.name}に ${yen(amount)}`
 }
+
+// 開いた後に変わっていたとき（spec 002「この領域で共通の振る舞い」）
+export const BILL_CHANGED = {
+  state: '請求の状態が変わりました。もう一度開いてください。',
+  content: '請求の中身が変わりました。もう一度確かめてください。',
+} as const
+
+export const SETTLEMENT_CHANGED = '精算の中身が変わりました。もう一度確かめてください。'

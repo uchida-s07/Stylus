@@ -4,6 +4,7 @@ import { RouteError } from './components/RouteError'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
+import { BillDetailPage } from './pages/money/BillDetailPage'
 import { BillNewPage } from './pages/money/BillNewPage'
 import { MoneyPage } from './pages/money/MoneyPage'
 
@@ -19,6 +20,7 @@ export const routes: RouteObject[] = [
           { path: '/', element: <HomePage /> },
           { path: '/money', element: <MoneyPage /> },
           { path: '/money/bills/new', element: <BillNewPage /> },
+          { path: '/money/bills/:id', element: <BillDetailPage /> },
         ],
       },
       { element: <RedirectIfSignedIn />, children: [{ path: '/login', element: <LoginPage /> }] },
