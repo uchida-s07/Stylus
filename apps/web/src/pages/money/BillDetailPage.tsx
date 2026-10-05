@@ -25,6 +25,7 @@ import { ReturnDialog } from './ReturnDialog'
 import {
   BILL_CHANGED,
   EVENT_LABELS,
+  STATUS_COLORS,
   STATUS_LABELS,
   dateLabel,
   dateTimeLabel,
@@ -179,7 +180,9 @@ function BillDetailView({ initial }: { initial: BillDetail }) {
               <Text fw={700} size="lg">
                 {bill.title}
               </Text>
-              <Badge variant="light">{STATUS_LABELS[bill.status]}</Badge>
+              <Badge variant="light" color={STATUS_COLORS[bill.status]}>
+                {STATUS_LABELS[bill.status]}
+              </Badge>
             </Group>
             <Text size="xl" fw={700}>
               {yen(bill.amount)}

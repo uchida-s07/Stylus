@@ -1,4 +1,4 @@
-import type { BillEvent, BillStatus, Party } from '@stylus/shared'
+import type { BillEvent, BillStatus, Party, SettlementStatus } from '@stylus/shared'
 
 // お金の画面の表示の形
 
@@ -24,6 +24,28 @@ export const STATUS_LABELS: Record<BillStatus, string> = {
   paid: '支払済',
   confirmed: '確認済',
   canceled: '取消',
+}
+
+// 状態のタグの色：次にすることで分ける（2026-10-05 オーナー決定）
+// 払うのを待つ＝青、直す必要がある＝オレンジ、受け取りの確認を待つ＝黄、片付いた＝緑、取り消した・戻した＝灰
+export const STATUS_COLORS: Record<BillStatus, string> = {
+  requested: 'blue',
+  returned: 'orange',
+  paid: 'yellow',
+  confirmed: 'green',
+  canceled: 'gray',
+}
+
+export const SETTLEMENT_STATUS_LABELS: Record<SettlementStatus, string> = {
+  paid: '受け取り待ち',
+  confirmed: '受け取り済み',
+  reverted: '戻した',
+}
+
+export const SETTLEMENT_STATUS_COLORS: Record<SettlementStatus, string> = {
+  paid: 'yellow',
+  confirmed: 'green',
+  reverted: 'gray',
 }
 
 // 請求の向き：せいご → 母

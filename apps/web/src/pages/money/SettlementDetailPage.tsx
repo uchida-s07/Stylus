@@ -2,7 +2,6 @@ import {
   availableSettlementActions,
   type SettlementAction,
   type SettlementDetail,
-  type SettlementStatus,
 } from '@stylus/shared'
 import {
   Alert,
@@ -31,17 +30,13 @@ import {
   dateTimeLabel,
   direction,
   SETTLEMENT_CHANGED,
+  SETTLEMENT_STATUS_COLORS,
+  SETTLEMENT_STATUS_LABELS,
   settlementLabel,
   STATUS_LABELS,
   yen,
 } from './format'
 import { useApiLoad } from './useApiLoad'
-
-const SETTLEMENT_STATUS_LABELS: Record<SettlementStatus, string> = {
-  paid: '受け取り待ち',
-  confirmed: '受け取り済み',
-  reverted: '戻した',
-}
 
 type Ui = { label: string; title: string; confirm: string }
 
@@ -129,7 +124,9 @@ function SettlementView({ initial }: { initial: SettlementDetail }) {
               <Text fw={700} size="lg">
                 {settlementLabel(settlement.payer, settlement.receiver, settlement.amount)}
               </Text>
-              <Badge variant="light">{SETTLEMENT_STATUS_LABELS[settlement.status]}</Badge>
+              <Badge variant="light" color={SETTLEMENT_STATUS_COLORS[settlement.status]}>
+                {SETTLEMENT_STATUS_LABELS[settlement.status]}
+              </Badge>
             </Group>
             <Text size="sm" c="dimmed">
               払った：{settlement.paidByName}（{dateTimeLabel(settlement.paidAt)}）

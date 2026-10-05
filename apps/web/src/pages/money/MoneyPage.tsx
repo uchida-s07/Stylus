@@ -20,7 +20,7 @@ import { api } from '../../api/client'
 import { callApi, loadErrorOf } from '../../api/responses'
 import { useLeaveAsUnregistered } from '../../auth/unregistered'
 import { ErrorScreen, type ErrorKind } from '../../components/ErrorScreen'
-import { STATUS_LABELS, dateLabel, direction, yen } from './format'
+import { STATUS_COLORS, STATUS_LABELS, dateLabel, direction, yen } from './format'
 
 type View = 'open' | 'closed'
 type State =
@@ -157,7 +157,9 @@ function BillRow({ bill }: { bill: BillSummary }) {
       </Group>
       <Group justify="space-between" wrap="nowrap">
         <Text size="sm">{direction(bill.from, bill.to)}</Text>
-        <Badge variant="light">{STATUS_LABELS[bill.status]}</Badge>
+        <Badge variant="light" color={STATUS_COLORS[bill.status]}>
+          {STATUS_LABELS[bill.status]}
+        </Badge>
       </Group>
       <Text size="sm" c="dimmed">
         {dateLabel(bill.occurredOn)}・{bill.category.name}
