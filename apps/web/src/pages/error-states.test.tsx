@@ -101,4 +101,17 @@ describe('通信できない・読み込めない・登録から外されたと�
     expect(router.state.location.pathname).toBe('/login')
     expect(fakeSupabase.storedSession()).toBeNull()
   })
+
+  // AC ではない確認（spec 002「3. 変更差分」画面：403 は not_a_member のときだけ未登録として扱う）
+  it('ホームで自分の情報の API が 403 forbidden を返すと、「うまく読み込めませんでした。…」が出て、端末のログイン状態は残る', async () => {
+    fakeSupabase.setStoredSession(testSession())
+    installFakeApi({
+      'GET /me': () =>
+        json({ error: { code: 'forbidden', message: 'この操作をする権限がありません' } }, 403),
+    })
+    renderApp('/')
+
+    await expectErrorScreenWith(LOAD_FAILED)
+    expect(fakeSupabase.storedSession()).not.toBeNull()
+  })
 })
