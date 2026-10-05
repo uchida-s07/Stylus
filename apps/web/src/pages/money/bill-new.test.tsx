@@ -176,6 +176,15 @@ describe('請求の入力の画面（MONEY-F-001）', () => {
     })
   })
 
+  it('カテゴリーの欄の下の「カテゴリーを編集」からカテゴリーの画面へ進める', async () => {
+    openAsSeigo(() => json(billSummary(), 201))
+    await screen.findByLabelText('カテゴリー')
+    expect(screen.getByRole('link', { name: 'カテゴリーを編集' })).toHaveAttribute(
+      'href',
+      '/money/categories',
+    )
+  })
+
   it('請求先に自分は出ない。息子は「家庭」を選べる。名義は親にだけ出る', async () => {
     openAsSeigo(() => json(billSummary(), 201))
     const to = await screen.findByLabelText('請求先')

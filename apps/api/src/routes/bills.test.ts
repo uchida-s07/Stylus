@@ -374,7 +374,7 @@ describe('請求の API', () => {
       expect(res.bills.map((b) => b.occurredOn)).toEqual(['2026-10-03', '2026-10-02', '2026-10-01'])
     })
 
-    it('[MONEY-F-004/AC-6] 確認済と取消の請求は「片付いた」に出て、「片付いていない」には出ない', async () => {
+    it('[MONEY-F-004/AC-6] 確認済と取消の請求は履歴（view=closed）に出て、お金の画面の一覧（view=open）には出ない', async () => {
       const confirmed = await bill('seigo', 'mother', 1000, 'confirmed')
       const canceled = await bill('seigo', 'mother', 2000, 'canceled')
 
@@ -740,7 +740,7 @@ describe('請求の API', () => {
     const confirm = (who: FamilyKey, id: string, version = 1) =>
       t.call(who, 'POST', `/bills/${id}/confirm`, { version })
 
-    it('[MONEY-F-007/AC-1] 1件ずつ払われた せいご→母 の支払済の請求を、せいごが「受け取った」にすると、確認済になり「片付いた」側に出る', async () => {
+    it('[MONEY-F-007/AC-1] 1件ずつ払われた せいご→母 の支払済の請求を、せいごが「受け取った」にすると、確認済になり履歴（view=closed）に出る', async () => {
       const bill = await t.insertBill({ status: 'paid' })
       const res = await confirm('seigo', bill.id)
       expect(res.status).toBe(200)

@@ -1,6 +1,7 @@
 import type { Category, MemberSummary, MeResponse } from '@stylus/shared'
 import {
   Alert,
+  Anchor,
   Button,
   NativeSelect,
   SegmentedControl,
@@ -10,6 +11,7 @@ import {
   TextInput,
 } from '@mantine/core'
 import { useRef, useState, type FormEvent } from 'react'
+import { Link } from 'react-router'
 import type { BillFormValues, SendResult } from './billFormValues'
 
 const HOUSEHOLD = 'household'
@@ -118,6 +120,10 @@ export function BillForm({
           ]}
           error={errors.categoryId}
         />
+        {/* 欲しいカテゴリーが無いと気づいたときに進めるように（2026-10-05 オーナー決定） */}
+        <Anchor component={Link} to="/money/categories" size="sm" mt={-8}>
+          カテゴリーを編集
+        </Anchor>
         <TextInput
           label="件名"
           value={values.title}

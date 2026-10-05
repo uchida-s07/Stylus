@@ -1,62 +1,44 @@
-import type { BillListResponse, BillSummary, PendingSettlement } from '@stylus/shared'
+import type { BillListResponse, PendingSettlement } from '@stylus/shared'
 import {
+  ActionIcon,
   Anchor,
-  Badge,
   Button,
   Card,
   Center,
   Container,
   Group,
   Loader,
-  SegmentedControl,
+  Menu,
   SimpleGrid,
   Stack,
   Text,
   Title,
 } from '@mantine/core'
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { api } from '../../api/client'
-import { callApi, loadErrorOf } from '../../api/responses'
-import { useLeaveAsUnregistered } from '../../auth/unregistered'
-import { ErrorScreen, type ErrorKind } from '../../components/ErrorScreen'
-import { STATUS_COLORS, STATUS_LABELS, dateLabel, direction, yen } from './format'
+import { callApi } from '../../api/responses'
+import { ErrorScreen } from '../../components/ErrorScreen'
+import { BillRow } from './BillRow'
+import { yen } from './format'
+import { useApiLoad } from './useApiLoad'
 
-type View = 'open' | 'closed'
-type State =
-  | { kind: 'loading' }
-  | { kind: 'ready'; data: BillListResponse }
-  | { kind: 'error'; error: ErrorKind }
-
-// お金の画面（MONEY-F-004）：合計、受け取り待ちの精算、請求の一覧（片付いていない／片付いた）
+// お金の画面（MONEY-F-004）：合計、受け取り待ちの精算、片付いていない請求の一覧
+// 片付いた請求（履歴）とカテゴリーの編集へは、右上のメニューから進む（2026-10-05 オーナー決定）
 export function MoneyPage() {
-  const [view, setView] = useState<View>('open')
-  const [state, setState] = useState<State>({ kind: 'loading' })
-  const leaveAsUnregistered = useLeaveAsUnregistered()
-
-  useEffect(() => {
-    let active = true
-    void (async () => {
-      const result = await callApi(() => api.bills.$get({ query: { view } }))
-      if (!active) return
-      if (result.kind === 'unregistered') return void leaveAsUnregistered()
-      if (result.kind !== 'ok') return setState({ kind: 'error', error: loadErrorOf(result) })
-      setState({ kind: 'ready', data: result.data })
-    })()
-    return () => {
-      active = false
-    }
-  }, [view, leaveAsUnregistered])
+  const { state } = useApiLoad(() => callApi(() => api.bills.$get({ query: { view: 'open' } })))
 
   if (state.kind === 'error') return <ErrorScreen kind={state.error} />
   return (
     <Container component="main" aria-label="お金" py="md">
       <Stack>
-        <Group justify="space-between">
+        <Group justify="space-between" wrap="nowrap">
           <Title order={1}>お金</Title>
-          <Anchor component={Link} to="/">
-            ホームへ
-          </Anchor>
+          <Group gap="xs" wrap="nowrap">
+            <Anchor component={Link} to="/">
+              ホームへ
+            </Anchor>
+            <MoneyMenu />
+          </Group>
         </Group>
         <Group grow>
           <Button component={Link} to="/money/bills/new">
@@ -76,30 +58,36 @@ export function MoneyPage() {
             {state.data.pendingSettlements.map((s) => (
               <PendingSettlementCard key={s.id} settlement={s} />
             ))}
+            {state.data.bills.length === 0 ? (
+              <Text c="dimmed">請求はありません</Text>
+            ) : (
+              state.data.bills.map((bill) => <BillRow key={bill.id} bill={bill} />)
+            )}
           </>
         )}
-        <SegmentedControl
-          value={view}
-          onChange={(v) => {
-            setState({ kind: 'loading' })
-            setView(v as View)
-          }}
-          data={[
-            { value: 'open', label: '片付いていない' },
-            { value: 'closed', label: '片付いた' },
-          ]}
-        />
-        {state.kind === 'ready' &&
-          (state.data.bills.length === 0 ? (
-            <Text c="dimmed">請求はありません</Text>
-          ) : (
-            state.data.bills.map((bill) => <BillRow key={bill.id} bill={bill} />)
-          ))}
-        <Anchor component={Link} to="/money/categories" ta="center">
-          カテゴリー
-        </Anchor>
       </Stack>
     </Container>
+  )
+}
+
+// 右上のメニュー：履歴（片付いた請求）とカテゴリーの編集
+function MoneyMenu() {
+  return (
+    <Menu position="bottom-end">
+      <Menu.Target>
+        <ActionIcon variant="subtle" size="lg" aria-label="メニュー">
+          ⋯
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Item component={Link} to="/money/history">
+          履歴
+        </Menu.Item>
+        <Menu.Item component={Link} to="/money/categories">
+          カテゴリーの編集
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
   )
 }
 
@@ -141,28 +129,6 @@ function PendingSettlementCard({ settlement: s }: { settlement: PendingSettlemen
       <Text fw={700}>{label}</Text>
       <Text size="sm" c="dimmed">
         精算の受け取り待ち
-      </Text>
-    </Card>
-  )
-}
-
-function BillRow({ bill }: { bill: BillSummary }) {
-  return (
-    <Card component={Link} to={`/money/bills/${bill.id}`} withBorder padding="sm">
-      <Group justify="space-between" wrap="nowrap">
-        <Text fw={700} truncate>
-          {bill.title}
-        </Text>
-        <Text fw={700}>{yen(bill.amount)}</Text>
-      </Group>
-      <Group justify="space-between" wrap="nowrap">
-        <Text size="sm">{direction(bill.from, bill.to)}</Text>
-        <Badge variant="light" color={STATUS_COLORS[bill.status]}>
-          {STATUS_LABELS[bill.status]}
-        </Badge>
-      </Group>
-      <Text size="sm" c="dimmed">
-        {dateLabel(bill.occurredOn)}・{bill.category.name}
       </Text>
     </Card>
   )

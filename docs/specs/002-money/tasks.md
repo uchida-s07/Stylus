@@ -304,10 +304,10 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
   - Red: 対象外（AC なし。見た目の色）
   - 完了条件: テスト全体が通る
 
-- [ ] T-36: 片付いた請求を右上のメニューの「履歴」へ移し、カテゴリーの画面への入口を直す
+- [x] T-36: 片付いた請求を右上のメニューの「履歴」へ移し、カテゴリーの画面への入口を直す
   - 対応: MONEY-F-004 / AC-6（画面）、spec「3. 変更差分」画面の `/money`・`/money/history`・`/money/bills/new`
   - 対象ファイル: `apps/web/src/pages/money/MoneyPage.tsx`（切り替えと下の「カテゴリー」をなくし、右上にメニュー）、`apps/web/src/pages/money/HistoryPage.tsx`（新規）、`apps/web/src/pages/money/BillRow.tsx`（一覧の行を共用）、`apps/web/src/pages/money/BillForm.tsx`（カテゴリーの欄の下に「カテゴリーを編集」）、`apps/web/src/router.tsx`、`money-page.test.tsx`、`history.test.tsx`（新規）、`bill-new.test.tsx`、`apps/api/src/routes/bills.test.ts`（AC-6 のテスト名の言い回し）
-  - Red: 未記録（想定：メニューと履歴の画面が無い）
+  - Red: 2026-10-05 実行。変更前の画面と中身の無い `HistoryPage` で 6件失敗：AC-6 は履歴の画面に請求の行が無い、タグなしの5件は、お金の画面に「片付いた」の切り替えが残っている・右上の「メニュー」が無い・履歴の「片付いた請求はありません」が無い・請求の入力に「カテゴリーを編集」が無い
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
 - [ ] T-37: もう一度開発環境に流して確かめる（管理者の手作業）

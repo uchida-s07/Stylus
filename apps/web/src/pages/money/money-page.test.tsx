@@ -72,14 +72,29 @@ describe('お金の画面（MONEY-F-004）', () => {
     }
   })
 
-  it('「片付いた」に切り替えると view=closed で読み直す', async () => {
+  it('お金の画面は片付いていない請求だけを読み、切り替えは無い', async () => {
     const { requests } = installFakeApi({ 'GET /bills': () => json(listResponse()) })
     renderApp('/money')
     await screen.findByText('請求はありません')
 
-    await userEvent.click(screen.getByRole('radio', { name: '片付いた' }))
+    expect(requests.map((r) => new URL(r.url).search)).toEqual(['?view=open'])
+    expect(screen.queryByRole('radio', { name: '片付いた' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['履歴', '/money/history'],
+    ['カテゴリーの編集', '/money/categories'],
+  ])('右上のメニューの「%s」から %s へ進む', async (name, path) => {
+    installFakeApi({
+      'GET /bills': () => json(listResponse()),
+      'GET /bill-categories': () => json({ categories: [] }),
+    })
+    const { router } = renderApp('/money')
     await screen.findByText('請求はありません')
-    expect(requests.map((r) => new URL(r.url).search)).toContain('?view=closed')
+
+    await userEvent.click(screen.getByRole('button', { name: 'メニュー' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name }))
+    expect(router.state.location.pathname).toBe(path)
   })
 
   it('ホームの「お金」を押すとお金の画面へ進む', async () => {

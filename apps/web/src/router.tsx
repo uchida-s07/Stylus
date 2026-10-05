@@ -8,6 +8,7 @@ import { BillDetailPage } from './pages/money/BillDetailPage'
 import { CategoriesPage } from './pages/money/CategoriesPage'
 import { BillEditPage } from './pages/money/BillEditPage'
 import { BillNewPage } from './pages/money/BillNewPage'
+import { HistoryPage } from './pages/money/HistoryPage'
 import { MoneyPage } from './pages/money/MoneyPage'
 import { SettlePage } from './pages/money/SettlePage'
 import { SettlementDetailPage } from './pages/money/SettlementDetailPage'
@@ -23,6 +24,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: '/', element: <HomePage /> },
           { path: '/money', element: <MoneyPage /> },
+          { path: '/money/history', element: <HistoryPage /> },
           { path: '/money/bills/new', element: <BillNewPage /> },
           { path: '/money/bills/:id', element: <BillDetailPage /> },
           { path: '/money/bills/:id/edit', element: <BillEditPage /> },
