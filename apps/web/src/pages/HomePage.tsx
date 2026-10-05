@@ -1,6 +1,7 @@
 import type { MeResponse } from '@stylus/shared'
 import { Button, Container, Group, Stack, Text, Title } from '@mantine/core'
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import { api } from '../api/client'
 import { callApi, loadErrorOf } from '../api/responses'
 import { signOutLocally } from '../auth/logout'
@@ -44,6 +45,9 @@ export function HomePage() {
           </Button>
         </Group>
         <Text size="xl">{state.me.displayName}</Text>
+        <Button component={Link} to="/money">
+          お金
+        </Button>
       </Stack>
       <LogoutConfirm
         opened={confirmingLogout}
