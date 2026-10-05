@@ -318,14 +318,21 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
 
 ## 7. この spec の外のリリース作業（/spec-close の後）
 
-2026-10-05 のオーナーの判断で、T-33 をこの spec のタスクから外した。本番へのデプロイは `develop` を `main` にマージして動く作りのため、spec を閉じて `develop` にマージした後に行う。要件を作る作業ではなく、できたものを配るリリースの作業のため。完了したことにはしていない（review-notes に記録）
+2026-10-05 のオーナーの判断で、T-33 をこの spec のタスクから外した。本番へのデプロイは `develop` を `main` にマージして動く作りのため、spec を閉じて `develop` にマージした後に行う。要件を作る作業ではなく、できたものを配るリリースの作業のため。完了したことにはしていない（review-notes に記録）。その後 2026-10-05 に本番に出し、完了した
 
-- T-33（タスクから外した。/spec-close の後に行う）: 本番に出す（管理者の手作業）
+- T-33（タスクから外した。/spec-close の後に行い、2026-10-05 に完了）: 本番に出す（管理者の手作業）
   - 対応: design.md「移行計画」
   - 対象ファイル: なし
   - 内容: develop → main のマージで、本番の DB へのマイグレーションと stylus-api のデプロイが流れたことを確かめる。本番で公開キーで Data API を呼び、新しい4つの表を読めない・書けないことを確かめる。1102 が出ていないことを確かめる
   - Red: 対象外（リリース）
   - 完了条件: 本番でお金の画面が開け、Data API の確認が済んでいる
+  - 経過（2026-10-05）:
+    - develop → main（uchida-s07/Stylus#10、マージコミット）で Deploy API（run 37322711344）が Environment `production` で動いた。本番の `stylus` へのマイグレーションは「migrations applied successfully」、`stylus-api` へのデプロイも成功した（版 c9b338b3、14:12 UTC）
+    - デプロイされた `stylus-api` の中身に、精算（`/settlements`）とカテゴリー（`/bill-categories`）のルートが入っていることを、Cloudflare の API で版の中身を読んで確かめた。トークン無しの要求は、新しいルートも 401 `unauthenticated`（認証がルートの振り分けより先に動くので、存在しないパスも 401 になる。ルートの有無の確認は版の中身で行った）
+    - Pages の本番（`https://stylus-family.pages.dev`）の配信物に `/money/history` が入っていて、新しい版になっている
+    - Data API（本番）：公開キーで新しい4つの表（bills・bill_events・settlements・bill_categories）と members に `GET`・`POST /rest/v1/<表>` を呼ぶと、どれも 503 `PGRST002` で読めず書けなかった（001 の T-25・開発と同じ）
+    - 1102：Cloudflare の GraphQL（workersInvocationsAdaptive）で、デプロイ後の `stylus-api` は 9 リクエストすべて success、エラー 0。CPU 時間は中央値 20.3ms・最大 32.5ms（確認のための要求で、起動直後のものを含む。review-notes の既知の件と同じく、止められてはいない）
+    - オーナーが本番にログインし、お金の画面が開けることを確かめた。完了条件を満たしたので T-33 は完了
 
 ## /spec-close へ引き継ぐこと
 
