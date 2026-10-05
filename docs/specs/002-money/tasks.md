@@ -50,7 +50,7 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
   - Red: 対象外（文書）
   - 完了条件: 2本の ADR が雛形の節を満たし、design.md の該当箇所から参照されている
 
-- [ ] T-2: Hyperdrive 経由でトランザクションと `FOR UPDATE` が使えるかを開発環境で確かめる（管理者の手作業を含む）
+- [x] T-2: Hyperdrive 経由でトランザクションと `FOR UPDATE` が使えるかを開発環境で確かめる（管理者の手作業を含む）
   - 対応: design.md「リスクと懸念」の1行目
   - 対象ファイル: なし（確認用の一時的なルートはコミットしない）。結果は design.md の「リスクと懸念」に追記する
   - 内容: 確認用のルートを一時的に置いて stylus-api-dev で動かし（手元からのデプロイ、または `wrangler dev --env dev --remote`）、`db.transaction` の中で (1) `select txid_current()` を2回呼んで同じ値になる（同じ接続・同じトランザクション）、(2) `select … from members … for update` と更新ができる、(3) 例外を投げると更新が巻き戻る、を確かめる。終わったらコミット済みの版をデプロイし直す
