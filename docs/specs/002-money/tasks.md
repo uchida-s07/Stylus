@@ -267,7 +267,7 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
 
 ## 5. 仕上げ
 
-- [ ] T-32: 開発環境で確かめる（管理者の手作業）
+- [x] T-32: 開発環境で確かめる（管理者の手作業）
   - 対応: COMMON-N-008（幅 360px・1280px の手動確認）、design.md「移行計画」「リスクと懸念」（CPU 時間、Data API）
   - 対象ファイル: なし。結果はこのタスクの「結果」に書く
   - 内容: develop へのマージで開発の DB へのマイグレーションと stylus-api-dev のデプロイが流れたことを確かめる。Pages のプレビューで、お金のすべての画面（`/money` 以下の7つと、変えた `/`・`/login`）を幅 360px と 1280px で開き、横スクロールが出ず、すべての操作ができることを確かめる。登録 → 払った → 受け取った、精算 → まとめて払った → まとめて受け取った、を一通り通す。公開キーで Data API を呼び、新しい4つの表を読めない・書けないことを確かめる。Workers のダッシュボード（または `wrangler tail`）で 1102 が出ていないことを確かめる
@@ -288,6 +288,32 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
   - 内容: develop → main のマージで、本番の DB へのマイグレーションと stylus-api のデプロイが流れたことを確かめる。本番で公開キーで Data API を呼び、新しい4つの表を読めない・書けないことを確かめる。1102 が出ていないことを確かめる
   - Red: 対象外（リリース）
   - 完了条件: 本番でお金の画面が開け、Data API の確認が済んでいる
+
+## 6. 開発環境での確認（T-32）で出た指摘（2026-10-05 オーナー決定）
+
+- [ ] T-34: 金額に全角の数字などを入れたら「半角の数字で入力してください」
+  - 対応: MONEY-F-001 / AC-19
+  - 対象ファイル: `apps/web/src/pages/money/billFormValues.ts`、`apps/web/src/pages/money/BillNewPage.tsx`、`apps/web/src/pages/money/BillEditPage.tsx`、`apps/web/src/pages/money/bill-new.test.tsx`
+  - 内容: 画面で金額を数に直す前に、半角の数字（と小数点・マイナス）だけかを確かめ、違えば金額の欄に「半角の数字で入力してください」。直す画面も同じ
+  - Red: 未記録（想定：今の画面では「３０００」が NaN になり「入力してください」と出る）
+  - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+
+- [ ] T-35: 状態のタグを、次にすることで色分けする
+  - 対応: spec「3. 変更差分」画面（AC なし）
+  - 対象ファイル: `apps/web/src/pages/money/format.ts`、`MoneyPage.tsx`（一覧の行）、`BillDetailPage.tsx`、`SettlementDetailPage.tsx`
+  - Red: 対象外（AC なし。見た目の色）
+  - 完了条件: テスト全体が通る
+
+- [ ] T-36: 片付いた請求を右上のメニューの「履歴」へ移し、カテゴリーの画面への入口を直す
+  - 対応: MONEY-F-004 / AC-6（画面）、spec「3. 変更差分」画面の `/money`・`/money/history`・`/money/bills/new`
+  - 対象ファイル: `apps/web/src/pages/money/MoneyPage.tsx`（切り替えと下の「カテゴリー」をなくし、右上にメニュー）、`apps/web/src/pages/money/HistoryPage.tsx`（新規）、`apps/web/src/pages/money/BillRow.tsx`（一覧の行を共用）、`apps/web/src/pages/money/BillForm.tsx`（カテゴリーの欄の下に「カテゴリーを編集」）、`apps/web/src/router.tsx`、`money-page.test.tsx`、`history.test.tsx`（新規）、`bill-new.test.tsx`、`apps/api/src/routes/bills.test.ts`（AC-6 のテスト名の言い回し）
+  - Red: 未記録（想定：メニューと履歴の画面が無い）
+  - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+
+- [ ] T-37: もう一度開発環境に流して確かめる（管理者の手作業）
+  - 対応: COMMON-N-008（T-34〜T-36 で変えた画面を幅 360px・1280px で）
+  - Red: 対象外（手動の確認）
+  - 完了条件: オーナーが確かめ、結果が書かれている
 
 ## /spec-close へ引き継ぐこと
 
@@ -318,6 +344,7 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
 | MONEY-F-001/AC-16 | T-8, T-25 |
 | MONEY-F-001/AC-17 | T-7 |
 | MONEY-F-001/AC-18 | T-7 |
+| MONEY-F-001/AC-19 | T-34 |
 | MONEY-F-002/AC-1 | T-13 |
 | MONEY-F-002/AC-2 | T-13 |
 | MONEY-F-002/AC-3 | T-13 |
@@ -336,7 +363,7 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
 | MONEY-F-004/AC-3 | T-9 |
 | MONEY-F-004/AC-4 | T-9, T-24 |
 | MONEY-F-004/AC-5 | T-9 |
-| MONEY-F-004/AC-6 | T-9 |
+| MONEY-F-004/AC-6 | T-9, T-36 |
 | MONEY-F-004/AC-7 | T-24 |
 | MONEY-F-004/AC-8 | T-24 |
 | MONEY-F-005/AC-1 | T-15 |
