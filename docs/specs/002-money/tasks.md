@@ -189,11 +189,11 @@ spec-review で「細部は /spec-plan と実装の中で決める」とした5�
   - Red: 2026-10-05 実行。中身の無い形（`GET /settlements/:id`・`POST /settlements/:id/confirm` が 200 で `{}`）で 7件失敗：AC-1 は応答が `{}`（確認済にならない）、AC-2 は 403 でなく 200、AC-4 は2回目も 409 でなく 200、AC-5 は途中の失敗（トリガー）が起きず 500 でなく 200（受け取りの更新が無い）、AC-6 と N-001/AC-5 は 404 でなく 200、タグなしの中身の確認は応答が `{}`
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
-- [ ] T-21: 精算ごと戻す
+- [x] T-21: 精算ごと戻す
   - 対応: MONEY-F-009 / AC-3, AC-6, AC-7, AC-8, AC-9、MONEY-F-012 / AC-3
   - 対象ファイル: `apps/api/src/money/settlements.ts`、`apps/api/src/routes/settlements.ts`、`apps/api/src/routes/settlements.test.ts`
   - 内容: `POST /settlements/:id/revert`。払う側なら `settlement_payment_canceled`、受け取る側なら `settlement_not_received`。含まれる請求を請求中に戻して `settlement_id` を外し、精算を「戻した」にする
-  - Red: 未記録（想定：中身の無い形で、AC-3・AC-7 の2件が支払済のまま、AC-6 で一部だけ戻る（トリガー）、AC-8 で確認済の精算でも 200、AC-9 で2回目も 200、F-012/AC-3 で戻された精算を受け取れてしまう）
+  - Red: 2026-10-05 実行。中身の無い `POST /settlements/:id/revert`（200 で `{}`）で 8件失敗：AC-3 は応答が `{}`（戻らない）、AC-6 は途中の失敗が起きず 500 でなく 200、AC-7 は請求が支払済のまま、AC-8・AC-9 は 409 でなく 200、F-012/AC-3 は戻っていないので「まとめて受け取った」が 409 でなく 200、タグなしの2件（戻した後の中身・関係者でなければ 404）も同じ
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
 ## 4. 画面

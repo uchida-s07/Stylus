@@ -40,5 +40,11 @@ export function settlementsRoute(config: Pick<AppConfig, 'now'>) {
         const now = config.now()
         return c.json(await operateSettlement(c.var.db, c.var.member, id, 'confirm', now))
       })
+      // 精算ごと戻す（MONEY-F-009）。払う側なら「払ったを取り消した」、受け取る側なら「受け取っていない」
+      .post('/:id/revert', idParam(SETTLEMENT_NOT_FOUND), async (c) => {
+        const { id } = c.req.valid('param')
+        const now = config.now()
+        return c.json(await operateSettlement(c.var.db, c.var.member, id, 'revert', now))
+      })
   )
 }

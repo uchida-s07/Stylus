@@ -450,4 +450,97 @@ describe('精算の API', () => {
       await expectError(await t.call('seigo', 'GET', '/settlements/abc'), 404, 'not_found')
     })
   })
+
+  // せいご→母 3,000円 と 母→せいご 1,000円 を含む精算（母がせいごに 2,000円）が払われている
+  async function f009ac3Settlement() {
+    const a = await bill('seigo', 'mother', 3000)
+    const b = await bill('mother', 'seigo', 1000)
+    const res = await payAll('mother', 'seigo', await previewOk('mother', 'seigo'))
+    expect(res.status).toBe(201)
+    const { id } = (await res.json()) as { id: string }
+    return { id, bills: [a, b] }
+  }
+
+  async function eventCount(billId: string, kind: string) {
+    const rows = await t.db.select().from(billEvents).where(eq(billEvents.billId, billId))
+    return rows.filter((e) => e.kind === kind).length
+  }
+
+  describe('精算ごと戻す（MONEY-F-009）', () => {
+    const revertAll = (who: FamilyKey, id: string) =>
+      t.call(who, 'POST', `/settlements/${id}/revert`, {})
+
+    it('[MONEY-F-009/AC-3] せいごが精算の「受け取っていない」を選ぶと、2件とも請求中に戻る', async () => {
+      const s = await f009ac3Settlement()
+      const res = await revertAll('seigo', s.id)
+      expect(res.status).toBe(200)
+      expect(settlementDetailSchema.parse(await res.json()).status).toBe('reverted')
+      for (const b of s.bills) expect(await statusOf(b.id)).toBe('requested')
+      expect(await pendingOf('seigo')).toEqual([])
+    })
+
+    it('[MONEY-F-009/AC-6] 2件を請求中に戻す途中で保存に失敗すると、2件とも支払済のままで、精算は受け取り待ちのまま', async () => {
+      const s = await f009ac3Settlement()
+      await failBillUpdateAt(2)
+      expect((await revertAll('seigo', s.id)).status).toBe(500)
+      for (const b of s.bills) expect(await statusOf(b.id)).toBe('paid')
+      expect(await pendingOf('seigo')).toHaveLength(1)
+    })
+
+    it('[MONEY-F-009/AC-7] 母が精算の「払ったを取り消す」を選ぶと、2件とも請求中に戻り、各請求の経過に「払ったを取り消した（母）」が残る', async () => {
+      const s = await f009ac3Settlement()
+      expect((await revertAll('mother', s.id)).status).toBe(200)
+      for (const b of s.bills) {
+        expect(await statusOf(b.id)).toBe('requested')
+        const res = await t.call('seigo', 'GET', `/bills/${b.id}`)
+        const d = billDetailSchema.parse(await res.json())
+        expect(d.events.at(-1)).toMatchObject({
+          kind: 'settlement_payment_canceled',
+          actorName: '母',
+        })
+      }
+    })
+
+    it('[MONEY-F-009/AC-8] せいごが「まとめて受け取った」にした精算に、母が「払ったを取り消す」の API を呼ぶと、戻せず、精算も2件も確認済のまま', async () => {
+      const s = await f009ac3Settlement()
+      expect((await t.call('seigo', 'POST', `/settlements/${s.id}/confirm`, {})).status).toBe(200)
+      await expectError(await revertAll('mother', s.id), 409, 'state_changed')
+      for (const b of s.bills) expect(await statusOf(b.id)).toBe('confirmed')
+      const [row] = await t.db.select().from(settlements).where(eq(settlements.id, s.id))
+      expect(row?.status).toBe('confirmed')
+    })
+
+    it('[MONEY-F-009/AC-9] せいごが戻した精算に、もう一度「受け取っていない」の API を呼ぶと、戻せず、各請求の経過の「受け取っていない」は1回だけ', async () => {
+      const s = await f009ac3Settlement()
+      expect((await revertAll('seigo', s.id)).status).toBe(200)
+      await expectError(await revertAll('seigo', s.id), 409, 'state_changed')
+      for (const b of s.bills) expect(await eventCount(b.id, 'settlement_not_received')).toBe(1)
+    })
+
+    it('[MONEY-F-012/AC-3] 戻された精算を、せいごが「まとめて受け取った」にしようとすると、受け取れず、含まれていた請求は請求中のまま', async () => {
+      const s = await f009ac3Settlement()
+      expect((await revertAll('mother', s.id)).status).toBe(200)
+      await expectError(
+        await t.call('seigo', 'POST', `/settlements/${s.id}/confirm`, {}),
+        409,
+        'state_changed',
+      )
+      for (const b of s.bills) expect(await statusOf(b.id)).toBe('requested')
+    })
+
+    // AC ではない確認
+    it('戻した後も、精算の中身には含まれていた請求が出る', async () => {
+      const s = await f009ac3Settlement()
+      expect((await revertAll('seigo', s.id)).status).toBe(200)
+      const res = await t.call('mother', 'GET', `/settlements/${s.id}`)
+      const d = settlementDetailSchema.parse(await res.json())
+      expect(d).toMatchObject({ status: 'reverted', revertedByName: 'せいご' })
+      expect(d.bills).toHaveLength(2)
+    })
+
+    it('関係者でなければ 404', async () => {
+      const s = await f009ac3Settlement()
+      await expectError(await revertAll('kugo', s.id), 404, 'not_found')
+    })
+  })
 })
