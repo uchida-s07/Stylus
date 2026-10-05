@@ -36,7 +36,7 @@ export function createApp(config: AppConfig) {
     .route('/me', meRoute)
     .route('/members', membersRoute)
     .route('/bills', billsRoute(config))
-    .route('/settlements', settlementsRoute(config))
+    .route('/settlements', settlementsRoute())
     .route('/bill-categories', billCategoriesRoute)
 }
 
