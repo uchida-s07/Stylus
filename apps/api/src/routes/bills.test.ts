@@ -272,4 +272,35 @@ describe('請求の API', () => {
       expect((await createBill('kugo', { to: 'household' })).status).toBe(201)
     })
   })
+
+  describe('二重登録', () => {
+    it('[MONEY-F-001/AC-14] AC-1 と同じ値で「請求する」を続けて2回押しても、請求は1件だけできる', async () => {
+      const input = { to: t.family.mother.id, requestId: crypto.randomUUID() }
+      const [first, second] = await Promise.all([
+        createBill('seigo', input),
+        createBill('seigo', input),
+      ])
+      expect(first?.ok && second?.ok).toBe(true)
+      const a = billSummarySchema.parse(await first!.json())
+      const b = billSummarySchema.parse(await second!.json())
+      expect(a.id).toBe(b.id)
+      expect(await countBills()).toBe(1)
+      expect(await listIds('mother')).toEqual([a.id])
+    })
+
+    it('[MONEY-F-001/AC-16] 3,000円 が保存された後に、同じ入力のまま金額を 3,500 に直して押すと、新しい請求は作られず「この請求はすでに登録されています。…」と出て、3,000円 の請求が1件だけある', async () => {
+      const requestId = crypto.randomUUID()
+      expect((await createBill('seigo', { to: t.family.mother.id, requestId })).status).toBe(201)
+      const error = await expectError(
+        await createBill('seigo', { to: t.family.mother.id, requestId, amount: 3500 }),
+        409,
+        'already_registered',
+      )
+      expect(error.message).toBe(
+        'この請求はすでに登録されています。一覧で確かめて、必要なら直してください。',
+      )
+      const { bills: rows } = await list('seigo')
+      expect(rows.map((b) => b.amount)).toEqual([3000])
+    })
+  })
 })

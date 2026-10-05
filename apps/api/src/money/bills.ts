@@ -1,5 +1,5 @@
 import { MONEY_MESSAGES, type BillSummary, type createBillInputSchema } from '@stylus/shared'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { z } from 'zod'
 import type { Db } from '../db/client'
 import { billCategories, billEvents, bills, members } from '../db/schema'
@@ -28,12 +28,48 @@ export async function createBill(
   try {
     return await insertBill(db, member, input, fromMemberId, toMemberId)
   } catch (error) {
+    const code = pgErrorCode(error)
     // 判定の後、登録の直前にカテゴリーが削除された（MONEY-F-001/AC-11）
-    if (pgErrorCode(error) === PG.FOREIGN_KEY_VIOLATION) {
+    if (code === PG.FOREIGN_KEY_VIOLATION) {
       failInput({ categoryId: MONEY_MESSAGES.categoryNotFound })
+    }
+    // 同じ request_id の登録がすでにある（二重登録。design.md「同時の操作」）
+    if (code === PG.UNIQUE_VIOLATION) {
+      return sameRequestBill(db, member, input, fromMemberId, toMemberId)
     }
     throw error
   }
+}
+
+// 中身が同じならすでにある請求を返し（MONEY-F-001/AC-14）、違えば 409（AC-16。直した中身を黙って捨てない）
+async function sameRequestBill(
+  db: Db,
+  member: Member,
+  input: BillCreateInput,
+  fromMemberId: string | null,
+  toMemberId: string | null,
+): Promise<BillSummary> {
+  const [existing] = await db
+    .select()
+    .from(bills)
+    .where(and(eq(bills.createdBy, member.id), eq(bills.requestId, input.requestId)))
+  if (!existing) throw new Error('一意の制約の違反なのに、同じ request_id の請求が無い')
+  const same =
+    existing.fromMemberId === fromMemberId &&
+    existing.toMemberId === toMemberId &&
+    existing.amount === input.amount &&
+    existing.categoryId === input.categoryId &&
+    existing.title === input.title &&
+    existing.memo === input.memo &&
+    existing.occurredOn === input.occurredOn
+  if (!same) {
+    fail(
+      409,
+      'already_registered',
+      'この請求はすでに登録されています。一覧で確かめて、必要なら直してください。',
+    )
+  }
+  return loadBillSummary(db, existing.id)
 }
 
 // 請求する側と請求先の組み合わせ（MONEY-F-001 の対象外の入力）
