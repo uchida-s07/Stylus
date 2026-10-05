@@ -1,10 +1,11 @@
 import type { BillListResponse } from '@stylus/shared'
 import { and, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 import type { Db } from '../db/client'
-import { bills } from '../db/schema'
+import { bills, members, settlements } from '../db/schema'
 import type { Member } from '../env'
-import { relatedTo } from './parties'
-import { selectBillRows, toBillSummary } from './summaries'
+import { relatedTo, settlementSidesOf } from './parties'
+import { partyOf, selectBillRows, toBillSummary } from './summaries'
+import { alias } from 'drizzle-orm/pg-core'
 
 const OPEN_STATUSES = ['requested', 'returned', 'paid'] as const
 const CLOSED_STATUSES = ['confirmed', 'canceled'] as const
@@ -26,7 +27,7 @@ export async function listBills(
   return {
     bills: rows.map(toBillSummary),
     totals: await totalsOf(db, member),
-    pendingSettlements: [],
+    pendingSettlements: await pendingSettlementsOf(db, member),
   }
 }
 
@@ -52,4 +53,45 @@ async function totalsOf(db: Db, member: Member): Promise<BillListResponse['total
       ? { pay: totals.householdPay, receive: totals.householdReceive }
       : null,
   }
+}
+
+const payer = alias(members, 'payer')
+const receiver = alias(members, 'receiver')
+
+// 受け取り待ちの精算（MONEY-F-004・011）。払われて、まだ受け取っていない・戻していないもの
+async function pendingSettlementsOf(
+  db: Db,
+  member: Member,
+): Promise<BillListResponse['pendingSettlements']> {
+  const rows = await db
+    .select({
+      id: settlements.id,
+      payerMemberId: settlements.payerMemberId,
+      payerName: payer.displayName,
+      receiverMemberId: settlements.receiverMemberId,
+      receiverName: receiver.displayName,
+      amount: settlements.amount,
+      paidAt: settlements.paidAt,
+    })
+    .from(settlements)
+    .leftJoin(payer, eq(settlements.payerMemberId, payer.id))
+    .leftJoin(receiver, eq(settlements.receiverMemberId, receiver.id))
+    .where(
+      and(
+        eq(settlements.status, 'paid'),
+        relatedTo(member, settlements.payerMemberId, settlements.receiverMemberId),
+      ),
+    )
+    .orderBy(desc(settlements.paidAt))
+  return rows.map((r) => ({
+    id: r.id,
+    payer: partyOf(r.payerMemberId, r.payerName),
+    receiver: partyOf(r.receiverMemberId, r.receiverName),
+    amount: r.amount,
+    paidAt: r.paidAt.toISOString(),
+    // 受け取る側を先に見る（受け取る操作のほうが要る）
+    side: settlementSidesOf(member, r.payerMemberId, r.receiverMemberId).includes('receiver')
+      ? ('receiver' as const)
+      : ('payer' as const),
+  }))
 }

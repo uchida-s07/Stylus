@@ -1,7 +1,15 @@
-import { apiErrorSchema, settlementPreviewSchema } from '@stylus/shared'
+import {
+  apiErrorSchema,
+  billDetailSchema,
+  billListResponseSchema,
+  settlementPreviewSchema,
+  type SettlementPreview,
+} from '@stylus/shared'
+import { count, eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { FamilyKey } from '../../test/family'
 import { createMoneyTestApp, type MoneyTestApp } from '../../test/money'
+import { bills, settlements } from '../db/schema'
 
 const NOW = new Date('2026-10-04T03:00:00Z')
 
@@ -138,6 +146,163 @@ describe('精算の API', () => {
         amount: 700,
         payer: 'counterpart',
       })
+    })
+  })
+
+  // 精算の画面で見ていたとおりに「まとめて払った」を送る
+  function payAll(
+    who: FamilyKey,
+    counterpart: FamilyKey | 'household',
+    p: SettlementPreview,
+    as: 'self' | 'household' = 'self',
+  ) {
+    return t.call(who, 'POST', '/settlements', {
+      as,
+      counterpart: counterpartOf(counterpart),
+      bills: p.bills.map((b) => ({ id: b.id, version: b.version })),
+      amount: p.amount,
+      payer: p.payer ?? 'self',
+    })
+  }
+
+  async function statusOf(id: string) {
+    const [row] = await t.db.select().from(bills).where(eq(bills.id, id))
+    return row?.status
+  }
+
+  async function countSettlements() {
+    const [row] = await t.db.select({ n: count() }).from(settlements)
+    return row?.n
+  }
+
+  async function pendingOf(who: FamilyKey) {
+    const res = await t.call(who, 'GET', '/bills')
+    return billListResponseSchema.parse(await res.json()).pendingSettlements
+  }
+
+  // MONEY-F-010/AC-1 の請求（請求中の3件、差し戻し・支払済が1件ずつ）
+  async function f010ac1Bills() {
+    return {
+      requested: [
+        await bill('seigo', 'mother', 3000),
+        await bill('seigo', 'mother', 500),
+        await bill('mother', 'seigo', 1000),
+      ],
+      returned: await bill('seigo', 'mother', 800, 'returned'),
+      paid: await bill('seigo', 'mother', 700, 'paid'),
+    }
+  }
+
+  // 精算に入った請求を DB に直接用意する（母がせいごに 2,000円）
+  async function settledBills() {
+    const [s] = await t.db
+      .insert(settlements)
+      .values({
+        payerMemberId: t.family.mother.id,
+        receiverMemberId: t.family.seigo.id,
+        amount: 2000,
+        paidBy: t.family.mother.id,
+        paidAt: NOW,
+      })
+      .returning()
+    const a = await t.insertBill({ amount: 3000, status: 'paid', settlementId: s!.id, version: 2 })
+    return { settlement: s!, bill: a }
+  }
+
+  describe('まとめて払った（MONEY-F-011）', () => {
+    it('[MONEY-F-011/AC-1] 母が相手「せいご」の精算（母がせいごに 2,500円）で「まとめて払った」にすると、請求中の3件が支払済になり、せいごの一覧に受け取り待ちの精算「母から 2,500円」が出る。差し戻しと支払済は変わらない', async () => {
+      const given = await f010ac1Bills()
+      const p = await previewOk('mother', 'seigo')
+      expect(p).toMatchObject({ amount: 2500, payer: 'self' })
+
+      const res = await payAll('mother', 'seigo', p)
+      expect(res.status).toBe(201)
+      for (const b of given.requested) expect(await statusOf(b.id)).toBe('paid')
+      expect(await statusOf(given.returned.id)).toBe('returned')
+      expect(await statusOf(given.paid.id)).toBe('paid')
+      expect(await pendingOf('seigo')).toMatchObject([
+        { payer: { name: '母' }, receiver: { name: 'せいご' }, amount: 2500, side: 'receiver' },
+      ])
+    })
+
+    it('[MONEY-F-011/AC-3] せいご（受け取る側）が「まとめて払った」の API を呼ぶと、403 で3件とも請求中のまま', async () => {
+      const given = await f010ac1Bills()
+      const p = await previewOk('seigo', 'mother')
+      expect(p.payer).toBe('counterpart')
+
+      await expectError(await payAll('seigo', 'mother', p), 403, 'forbidden')
+      for (const b of given.requested) expect(await statusOf(b.id)).toBe('requested')
+      expect(await countSettlements()).toBe(0)
+    })
+
+    it('[MONEY-F-011/AC-5] 差し引き 0円 で、せいごが「まとめて払った」にすると、2件とも支払済になり、母の一覧に受け取り待ちの精算「せいごから 0円」が出る', async () => {
+      const a = await bill('seigo', 'mother', 1000)
+      const b = await bill('mother', 'seigo', 1000)
+      const p = await previewOk('seigo', 'mother')
+      expect(p).toMatchObject({ amount: 0, payer: null })
+
+      expect((await payAll('seigo', 'mother', p)).status).toBe(201)
+      expect(await statusOf(a.id)).toBe('paid')
+      expect(await statusOf(b.id)).toBe('paid')
+      expect(await pendingOf('mother')).toMatchObject([
+        { payer: { name: 'せいご' }, amount: 0, side: 'receiver' },
+      ])
+    })
+
+    it('[MONEY-F-011/AC-6] くうごと父の間に請求中の請求が無いときに「まとめて払った」の API を呼ぶと、精算は作られない', async () => {
+      const p = await previewOk('kugo', 'father')
+      const res = await payAll('kugo', 'father', p)
+      expect(res.status).toBe(400)
+      expect(await countSettlements()).toBe(0)
+    })
+
+    it('[MONEY-F-005/AC-5] 精算（母がせいごに 2,000円）でまとめて払われた請求を、せいごが開くと、経過に精算でまとめて払ったこと・精算の相手（母）・精算額（2,000円）が出る', async () => {
+      const a = await bill('seigo', 'mother', 3000)
+      await bill('mother', 'seigo', 1000)
+      const p = await previewOk('mother', 'seigo')
+      expect((await payAll('mother', 'seigo', p)).status).toBe(201)
+
+      const res = await t.call('seigo', 'GET', `/bills/${a.id}`)
+      const d = billDetailSchema.parse(await res.json())
+      expect(d.events).toMatchObject([
+        {
+          kind: 'settled_paid',
+          actorName: '母',
+          settlement: { amount: 2000, payer: { name: '母' } },
+        },
+      ])
+    })
+
+    it('[MONEY-F-007/AC-4] 精算でまとめて払われた せいご→母 の請求を、せいごがその1件だけ「受け取った」にしようとすると、受け取れず支払済のまま', async () => {
+      const { bill: settled } = await settledBills()
+      await expectError(
+        await t.call('seigo', 'POST', `/bills/${settled.id}/confirm`, { version: 2 }),
+        409,
+        'state_changed',
+      )
+      expect(await statusOf(settled.id)).toBe('paid')
+    })
+
+    it('[MONEY-F-009/AC-5] 精算に含まれる せいご→母 の請求を、せいごがその1件だけ戻そうとすると、戻せず支払済のまま', async () => {
+      const { bill: settled } = await settledBills()
+      await expectError(
+        await t.call('seigo', 'POST', `/bills/${settled.id}/revert`, { version: 2 }),
+        409,
+        'state_changed',
+      )
+      expect(await statusOf(settled.id)).toBe('paid')
+    })
+
+    // AC ではない確認
+    it('「家庭」の名義でも払える（家庭がせいごに 2,500円 を父が払う）', async () => {
+      await bill('seigo', null, 4000)
+      await bill(null, 'seigo', 1500)
+      const p = await previewOk('father', 'seigo', 'household')
+      expect(p).toMatchObject({ amount: 2500, payer: 'self' })
+      expect((await payAll('father', 'seigo', p, 'household')).status).toBe(201)
+      expect(await pendingOf('mother')).toMatchObject([
+        { payer: { memberId: null, name: '家庭' }, amount: 2500, side: 'payer' },
+      ])
     })
   })
 })

@@ -3,10 +3,12 @@ import {
   MONEY_MESSAGES,
   type As,
   type PartyRef,
+  type SettlementInput,
   type SettlementPreview,
 } from '@stylus/shared'
-import { and, desc, eq, or } from 'drizzle-orm'
-import { bills, members } from '../db/schema'
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import type { Db } from '../db/client'
+import { billEvents, bills, members, settlements } from '../db/schema'
 import type { Member } from '../env'
 import { fail, failInput } from '../errors'
 import { partyIs, type PartyId } from './parties'
@@ -88,4 +90,68 @@ export async function previewSettlement(
     bills: rows.map(toBillSummary),
     ...settle(pair, rows),
   }
+}
+
+export const SETTLEMENT_CHANGED = '精算の中身が変わりました。もう一度確かめてください。'
+
+// まとめて払った（MONEY-F-011。design.md「同時の操作」、tasks.md D-3）
+// 1. 2者の間の請求中の請求を FOR UPDATE で読む → 2. 送られた { id, version } と完全に一致するか
+// → 3. 精算額と払う側を計算し直して一致するか → 4. 精算を足す → 5. 請求をまとめて支払済に → 6. 経過
+// 全部が成功するか、何も変わらないかのどちらか
+export async function createSettlement(
+  db: Db,
+  member: Member,
+  input: SettlementInput & { as: As },
+  now: Date,
+): Promise<{ id: string }> {
+  const pair = await resolvePair(db, member, input.as, input.counterpart)
+  // 画面が「相手が払う」と見ていたなら、押した人は受け取る側
+  if (input.payer === 'counterpart')
+    fail(403, 'forbidden', '受け取る側は「まとめて払った」にできません')
+
+  return db.transaction(async (tx) => {
+    const rows = await selectPairBills(tx, pair).for('update', { of: bills })
+
+    const sent = new Map(input.bills.map((b) => [b.id, b.version]))
+    const same = rows.length === sent.size && rows.every((r) => sent.get(r.id) === r.version)
+    if (!same) fail(409, 'state_changed', SETTLEMENT_CHANGED)
+
+    const result = settle(pair, rows)
+    // 差し引き 0円 なら押した側が払う側
+    const payer = result.payer ?? 'self'
+    if (result.amount !== input.amount || payer !== input.payer) {
+      fail(409, 'state_changed', SETTLEMENT_CHANGED)
+    }
+
+    const [settlement] = await tx
+      .insert(settlements)
+      .values({
+        payerMemberId: pair.self,
+        receiverMemberId: pair.counterpart,
+        amount: result.amount,
+        paidBy: member.id,
+        paidAt: now,
+      })
+      .returning({ id: settlements.id })
+    const settlementId = (settlement as { id: string }).id
+    const ids = rows.map((r) => r.id)
+
+    const updated = await tx
+      .update(bills)
+      .set({ status: 'paid', settlementId, version: sql`${bills.version} + 1`, updatedAt: now })
+      .where(and(inArray(bills.id, ids), eq(bills.status, 'requested')))
+      .returning({ id: bills.id })
+    if (updated.length !== ids.length) fail(409, 'state_changed', SETTLEMENT_CHANGED)
+
+    await tx.insert(billEvents).values(
+      ids.map((billId) => ({
+        billId,
+        kind: 'settled_paid' as const,
+        actorMemberId: member.id,
+        settlementId,
+        createdAt: now,
+      })),
+    )
+    return { id: settlementId }
+  })
 }
