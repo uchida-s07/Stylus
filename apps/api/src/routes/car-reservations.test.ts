@@ -842,4 +842,50 @@ describe('予約の API（CAR-F-004〜008）', () => {
       await expectError(res, 409, 'state_changed')
     })
   })
+
+  describe('予約を直すときの移す先の車（CAR-F-006）', () => {
+    async function carNameOf(id: string) {
+      const row = await t.findReservation(id)
+      return row && (row.carId === (await t.carId('ノア')) ? 'ノア' : 'ほか')
+    }
+
+    it('[CAR-F-006/AC-15] 車を「フィット」に変えている間に「フィット」が「使わない」になったら、保存されず「この車は今は予約できません。選び直してください」', async () => {
+      const r = await kugoReservation()
+      const fit = await t.insertCar('フィット')
+      const body = await editBody(r, { car: 'フィット' })
+      await t.call('mother', 'PATCH', `/cars/${fit.id}`, { isActive: false })
+      const res = await edit('kugo', r.id, body)
+      expect(await carNameOf(r.id)).toBe('ノア')
+      const error = await expectError(res, 409, 'car_unavailable')
+      expect(error.message).toBe('この車は今は予約できません。選び直してください')
+    })
+
+    it('[CAR-F-006/AC-20] 車を「フィット」に変えている間に「フィット」が削除されたら、保存されず「この車は見つかりません。」', async () => {
+      const r = await kugoReservation()
+      const fit = await t.insertCar('フィット')
+      const body = await editBody(r, { car: 'フィット' })
+      await t.deleteCar(fit.id)
+      const res = await edit('kugo', r.id, body)
+      expect(await carNameOf(r.id)).toBe('ノア')
+      const error = await expectError(res, 400, 'invalid_input')
+      expect(error.fields?.carId).toBe('この車は見つかりません。')
+    })
+
+    it('[CAR-F-006/AC-21] 「使わない」の「ノア」の、まだ始まっていない 9:00〜12:00 は、車を変えずに終了を 13:00 に直せる', async () => {
+      const r = await kugoReservation()
+      await t.call('mother', 'PATCH', `/cars/${r.carId}`, { isActive: false })
+      const res = await edit('kugo', r.id, await editBody(r, { to: '2026-10-10 13:00' }))
+      expect((await upcoming()).map(summary)).toEqual(['ノア くうご 10-10 09:00〜10-10 13:00'])
+      expect(res.status).toBe(200)
+    })
+
+    // AC ではない確認
+    it('「使う」の車へは移せる', async () => {
+      const r = await kugoReservation()
+      await t.insertCar('フィット')
+      const res = await edit('kugo', r.id, await editBody(r, { car: 'フィット' }))
+      expect((await upcoming()).map(summary)).toEqual(['フィット くうご 10-10 09:00〜10-10 12:00'])
+      expect(res.status).toBe(200)
+    })
+  })
 })

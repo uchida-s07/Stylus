@@ -69,10 +69,15 @@ async function sameRequestReservation(
 
 // 選んだ車（移す先の車）の条件に当たらなかった：車を取り直して、無ければ 400、「使わない」なら 409
 export async function failCarNotReservable(db: Db, carId: string): Promise<never> {
+  await checkCarReservable(db, carId)
+  throw new Error(`車 ${carId} は「使う」なのに条件に当たらなかった`)
+}
+
+// 車を取り直して、無ければ 400 invalid_input（fields.carId）、「使わない」なら 409 car_unavailable
+export async function checkCarReservable(db: Db, carId: string): Promise<void> {
   const [car] = await db.select({ isActive: cars.isActive }).from(cars).where(eq(cars.id, carId))
   if (!car) failInput({ carId: CAR_MESSAGES.carNotFound })
   if (!car.isActive) fail(409, 'car_unavailable', CAR_MESSAGES.carUnavailable)
-  throw new Error(`車 ${carId} は「使う」なのに条件に当たらなかった`)
 }
 
 // insert … select は表の列をすべて定義の順に並べる（Drizzle の決まり）
