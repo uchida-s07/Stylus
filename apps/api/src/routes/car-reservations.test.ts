@@ -85,6 +85,16 @@ describe('予約の API（CAR-F-004〜008）', () => {
     }
   }
 
+  // 使用中の予約の直し方（終了・行き先・メモ・版だけ）
+  function inUseBody(r: Row, changes: { to?: string; destination?: string | null } = {}) {
+    return {
+      endsAt: changes.to ? jstIso(changes.to) : r.endsAt.toISOString(),
+      destination: changes.destination !== undefined ? changes.destination : r.destination,
+      memo: r.memo,
+      version: r.version,
+    }
+  }
+
   function edit(who: FamilyKey, id: string, body: unknown) {
     return t.call(who, 'PATCH', `/car-reservations/${id}`, body)
   }
@@ -715,6 +725,80 @@ describe('予約の API（CAR-F-004〜008）', () => {
       const res = await edit('kugo', r.id, body)
       expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
       await expectError(res, 400, 'invalid_input')
+    })
+  })
+
+  describe('予約を直すの本人・状態・版（CAR-F-006）', () => {
+    it('[CAR-F-006/AC-6] 母のトークンでくうごの予約を直す API を呼ぶと、403 で予約は変わらない', async () => {
+      const r = await kugoReservation()
+      const res = await edit('mother', r.id, await editBody(r, { to: '2026-10-10 13:00' }))
+      expect(await t.findReservation(r.id)).toMatchObject({ version: 1 })
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
+      await expectError(res, 403, 'forbidden')
+    })
+
+    it('[CAR-F-006/AC-9] 10月10日 10:00、使用中の 9:00〜12:00 に車と開始を送ると、値が今と違っても同じでも 409 で予約は変わらない（D-1）', async () => {
+      const r = await kugoReservation()
+      t.setNow('2026-10-10 10:00')
+      const moved = await edit('kugo', r.id, await editBody(r, { from: '2026-10-10 09:30' }))
+      const same = await edit('kugo', r.id, await editBody(r))
+      expect(await t.findReservation(r.id)).toMatchObject({ version: 1 })
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
+      await expectError(moved, 409, 'state_changed')
+      await expectError(same, 409, 'state_changed')
+    })
+
+    it('[CAR-F-006/AC-10] 10月7日 20:00 に、終わった 10月7日 8:00〜10:00 を直す API を呼ぶと 409', async () => {
+      const r = await kugoReservation('2026-10-07 08:00', '2026-10-07 10:00')
+      const res = await edit('kugo', r.id, await editBody(r, { to: '2026-10-08 10:00' }))
+      expect(await t.findReservation(r.id)).toMatchObject({ version: 1 })
+      await expectError(res, 409, 'state_changed')
+    })
+
+    it('[CAR-F-006/AC-11] 端末 A で開いている間に端末 B で直していたら、端末 A の保存は 409 で端末 B の中身のまま', async () => {
+      const r = await kugoReservation()
+      // 端末 B：13:00 まで
+      expect((await edit('kugo', r.id, await editBody(r, { to: '2026-10-10 13:00' }))).status).toBe(
+        200,
+      )
+      // 端末 A：開いたときの版 1 で、行き先を直す
+      const res = await edit('kugo', r.id, await editBody(r, { destination: '駅' }))
+      expect(await t.findReservation(r.id)).toMatchObject({ destination: null, version: 2 })
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 13:00'))
+      await expectError(res, 409, 'state_changed')
+    })
+
+    it('[CAR-F-006/AC-12] 端末 A で開いている間に端末 B で取り消していたら、端末 A の保存は「この予約は見つかりません。」', async () => {
+      const r = await kugoReservation()
+      await t.deleteReservation(r.id)
+      const error = await expectError(
+        await edit('kugo', r.id, await editBody(r, { to: '2026-10-10 13:00' })),
+        404,
+        'not_found',
+      )
+      expect(error.message).toBe('この予約は見つかりません。')
+    })
+
+    it('[CAR-F-006/AC-13] 8:55 に開き終了を 13:00 にして、9:00 を過ぎてから保存すると、409 で 9:00〜12:00 のまま', async () => {
+      const r = await kugoReservation()
+      t.setNow('2026-10-10 08:55')
+      const body = await editBody(r, { to: '2026-10-10 13:00' })
+      t.setNow('2026-10-10 09:01')
+      const res = await edit('kugo', r.id, body)
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
+      const error = await expectError(res, 409, 'state_changed')
+      expect(error.message).toBe('この予約はもう始まっています。もう一度開いてください。')
+    })
+
+    it('[CAR-F-006/AC-16] 11:55 に使用中の予約の行き先を変え、12:00 を過ぎてから保存すると、409「この予約はもう終わっているため直せません。」', async () => {
+      const r = await kugoReservation()
+      t.setNow('2026-10-10 11:55')
+      const body = inUseBody(r, { destination: '駅' })
+      t.setNow('2026-10-10 12:01')
+      const res = await edit('kugo', r.id, body)
+      expect(await t.findReservation(r.id)).toMatchObject({ destination: null, version: 1 })
+      const error = await expectError(res, 409, 'state_changed')
+      expect(error.message).toBe('この予約はもう終わっているため直せません。')
     })
   })
 })
