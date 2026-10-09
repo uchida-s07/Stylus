@@ -6,7 +6,7 @@ import {
 } from '@stylus/shared'
 import { Hono } from 'hono'
 import type { AppConfig } from '../app'
-import { listUpcoming, loadReservationDetail } from '../car/list'
+import { listPast, listUpcoming, loadReservationDetail } from '../car/list'
 import { createReservation } from '../car/reservations'
 import type { AppHono } from '../env'
 import { idParam, jsonBody, queryInput } from '../validate'
@@ -16,9 +16,12 @@ import { idParam, jsonBody, queryInput } from '../validate'
 export function carReservationsRoute(config: Pick<AppConfig, 'now'>) {
   return (
     new Hono<AppHono>()
-      // 予定（CAR-F-005）
+      // 予定（CAR-F-005）と履歴（CAR-F-008）
       .get('/', queryInput(reservationListQuerySchema), async (c) => {
-        const reservations = await listUpcoming(c.var.db, config.now())
+        const { view, before } = c.req.valid('query')
+        const now = config.now()
+        if (view === 'past') return c.json(await listPast(c.var.db, now, before))
+        const reservations = await listUpcoming(c.var.db, now)
         return c.json({ reservations, nextCursor: null } satisfies ReservationListResponse)
       })
       // 予約を入れる（CAR-F-004）

@@ -452,4 +452,105 @@ describe('予約の API（CAR-F-004〜008）', () => {
       ])
     })
   })
+
+  describe('履歴の一覧（CAR-F-008、CAR-F-009/AC-1）', () => {
+    async function past(before?: string) {
+      const query = before ? `&before=${encodeURIComponent(before)}` : ''
+      const res = await t.call('father', 'GET', `/car-reservations?view=past${query}`)
+      expect(res.status).toBe(200)
+      return reservationListResponseSchema.parse(await res.json())
+    }
+
+    it('[CAR-F-008/AC-1] 10月7日 20:00 に履歴を開くと、母・せいごの順に出て、くうごの使用中の予約は出ない', async () => {
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'seigo',
+        from: '2026-10-05 09:00',
+        to: '2026-10-05 10:00',
+      })
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'mother',
+        from: '2026-10-06 13:00',
+        to: '2026-10-06 15:00',
+      })
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-07 19:00',
+        to: '2026-10-07 22:00',
+      })
+      const { reservations, nextCursor } = await past()
+      expect(reservations.map(summary)).toEqual([
+        'ノア 母 10-06 13:00〜10-06 15:00',
+        'ノア せいご 10-05 09:00〜10-05 10:00',
+      ])
+      expect(nextCursor).toBeNull()
+    })
+
+    it('[CAR-F-008/AC-2] 終わった予約が無いとき、履歴は空（これからの予約は出ない）', async () => {
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+      })
+      expect((await past()).reservations).toEqual([])
+    })
+
+    it('[CAR-F-008/AC-3] 終わった予約が31件あると、最初は新しいほうから30件、続きで31件目が出る', async () => {
+      // 10月6日 0:00 から1時間ずつ、31件（終了の遅いほうが新しい）
+      for (let i = 0; i < 31; i++) {
+        const start = new Date(Date.UTC(2026, 9, 5, 15 + i))
+        const fmt = (d: Date) => {
+          const j = new Date(d.getTime() + 9 * 3600_000).toISOString()
+          return `${j.slice(0, 10)} ${j.slice(11, 16)}`
+        }
+        await t.insertReservation({
+          car: 'ノア',
+          who: 'kugo',
+          from: fmt(start),
+          to: fmt(new Date(start.getTime() + 3600_000)),
+        })
+      }
+      const first = await past()
+      expect(first.reservations).toHaveLength(30)
+      expect(first.reservations[0]?.endsAt).toBe(jstIso('2026-10-07 07:00'))
+      expect(first.nextCursor).not.toBeNull()
+      const second = await past(first.nextCursor!)
+      expect(second.reservations.map(summary)).toEqual(['ノア くうご 10-06 00:00〜10-06 01:00'])
+      expect(second.nextCursor).toBeNull()
+    })
+
+    it('[CAR-F-009/AC-1] 終わった予約とこれからの予約が1件ずつある「ノア」を「ヴォクシー」に変えると、予定と履歴の両方で「ヴォクシー」と出る', async () => {
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-06 09:00',
+        to: '2026-10-06 10:00',
+      })
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+      })
+      await t.call('mother', 'PATCH', `/cars/${await t.carId('ノア')}`, { name: 'ヴォクシー' })
+      expect((await upcoming()).map(summary)).toEqual([
+        'ヴォクシー くうご 10-10 09:00〜10-10 12:00',
+      ])
+      expect((await past()).reservations.map(summary)).toEqual([
+        'ヴォクシー くうご 10-06 09:00〜10-06 10:00',
+      ])
+    })
+
+    // AC ではない確認
+    it('形の違うカーソルは 400', async () => {
+      await expectError(
+        await t.call('father', 'GET', '/car-reservations?view=past&before=abc'),
+        400,
+        'invalid_input',
+      )
+    })
+  })
 })

@@ -1,5 +1,12 @@
-import { CAR_MESSAGES, type Reservation, type ReservationDetail } from '@stylus/shared'
-import { asc, eq, gt } from 'drizzle-orm'
+import {
+  CAR_MESSAGES,
+  HISTORY_PAGE_SIZE,
+  toHistoryCursor,
+  type Reservation,
+  type ReservationDetail,
+  type ReservationListResponse,
+} from '@stylus/shared'
+import { and, asc, desc, eq, gt, lte, sql } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { carReservations, cars, members } from '../db/schema'
 import type { Member } from '../env'
@@ -61,4 +68,29 @@ export async function loadReservationDetail(
   const [row] = await selectReservationRows(db).where(eq(carReservations.id, id))
   if (!row) fail(404, 'not_found', CAR_MESSAGES.reservationNotFound)
   return toReservationDetail(row, member.id)
+}
+
+// 終わった予約（履歴。CAR-F-008）：終了が今以前を、終了の遅い順に30件ずつ。カーソルは最後の行の (終了日時, ID)
+export async function listPast(
+  db: Db,
+  now: Date,
+  before: { endsAt: Date; id: string } | undefined,
+): Promise<ReservationListResponse> {
+  const rows = await selectReservationRows(db)
+    .where(
+      and(
+        lte(carReservations.endsAt, now),
+        before &&
+          sql`(${carReservations.endsAt}, ${carReservations.id}) < (${before.endsAt.toISOString()}::timestamptz, ${before.id}::uuid)`,
+      ),
+    )
+    .orderBy(desc(carReservations.endsAt), desc(carReservations.id))
+    .limit(HISTORY_PAGE_SIZE + 1)
+  const page = rows.slice(0, HISTORY_PAGE_SIZE).map(toReservation)
+  const last = page.at(-1)
+  return {
+    reservations: page,
+    nextCursor:
+      rows.length > HISTORY_PAGE_SIZE && last ? toHistoryCursor(last.endsAt, last.id) : null,
+  }
 }
