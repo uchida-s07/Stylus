@@ -1,9 +1,10 @@
-import type { createReservationInputSchema, Reservation } from '@stylus/shared'
+import { CAR_MESSAGES, type createReservationInputSchema, type Reservation } from '@stylus/shared'
 import { and, eq, sql } from 'drizzle-orm'
 import type { z } from 'zod'
 import type { Db } from '../db/client'
 import { carReservations, cars } from '../db/schema'
 import type { Member } from '../env'
+import { fail, failInput } from '../errors'
 import { PG, pgErrorCode } from '../validate'
 import { failOverlap } from './conflict'
 import { selectReservationRows, toReservation } from './list'
@@ -22,11 +23,22 @@ export async function createReservation(
     inserted = await insertIfCarActive(db, member, input)
   } catch (error) {
     // 同じ車で時間が重なる予約がある。同時に送られた2つは、後に保存しようとした方がここに来る
-    if (pgErrorCode(error) === PG.EXCLUSION_VIOLATION) return failOverlap(db, input)
+    const code = pgErrorCode(error)
+    if (code === PG.EXCLUSION_VIOLATION) return failOverlap(db, input)
+    // 車の条件の確認の後に、その車が削除された
+    if (code === PG.FOREIGN_KEY_VIOLATION) failInput({ carId: CAR_MESSAGES.carNotFound })
     throw error
   }
-  if (!inserted) throw new Error('車が「使う」でない')
+  if (!inserted) return failCarNotReservable(db, input.carId)
   return loadReservation(db, inserted.id)
+}
+
+// 選んだ車（移す先の車）の条件に当たらなかった：車を取り直して、無ければ 400、「使わない」なら 409
+export async function failCarNotReservable(db: Db, carId: string): Promise<never> {
+  const [car] = await db.select({ isActive: cars.isActive }).from(cars).where(eq(cars.id, carId))
+  if (!car) failInput({ carId: CAR_MESSAGES.carNotFound })
+  if (!car.isActive) fail(409, 'car_unavailable', CAR_MESSAGES.carUnavailable)
+  throw new Error(`車 ${carId} は「使う」なのに条件に当たらなかった`)
 }
 
 // insert … select は表の列をすべて定義の順に並べる（Drizzle の決まり）

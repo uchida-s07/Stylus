@@ -260,4 +260,26 @@ describe('予約の API（CAR-F-004〜008）', () => {
       expect(error.conflict?.displayName).toBe('くうご')
     })
   })
+
+  describe('選んだ車が「使わない」・削除されていたとき（CAR-F-004）', () => {
+    it('[CAR-F-004/AC-12] 入力している間に「ノア」が「使わない」になったら、予約は作られず「この車は今は予約できません。選び直してください」', async () => {
+      const body = await reserveBody({ from: '2026-10-10 09:00', to: '2026-10-10 12:00' })
+      expect(
+        (await t.call('mother', 'PATCH', `/cars/${body.carId}`, { isActive: false })).status,
+      ).toBe(200)
+      const res = await t.call('kugo', 'POST', '/car-reservations', body)
+      expect(await t.reservationRows()).toHaveLength(0)
+      const error = await expectError(res, 409, 'car_unavailable')
+      expect(error.message).toBe('この車は今は予約できません。選び直してください')
+    })
+
+    it('[CAR-F-004/AC-20] 入力している間に「ノア」が削除されたら、予約は作られず「この車は見つかりません。」', async () => {
+      const body = await reserveBody({ from: '2026-10-10 09:00', to: '2026-10-10 12:00' })
+      await t.deleteCar(body.carId)
+      const res = await t.call('kugo', 'POST', '/car-reservations', body)
+      expect(await t.reservationRows()).toHaveLength(0)
+      const error = await expectError(res, 400, 'invalid_input')
+      expect(error.fields?.carId).toBe('この車は見つかりません。')
+    })
+  })
 })
