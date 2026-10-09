@@ -1,7 +1,9 @@
-import type { Reservation, ReservationDetail } from '@stylus/shared'
+import { CAR_MESSAGES, type Reservation, type ReservationDetail } from '@stylus/shared'
 import { asc, eq, gt } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { carReservations, cars, members } from '../db/schema'
+import type { Member } from '../env'
+import { fail } from '../errors'
 
 // 予約の行に、車の名前・「使わない」の印・予約した家族の表示名を結合する（画面で追加の問い合わせをしない）
 export function selectReservationRows(db: Db) {
@@ -48,4 +50,15 @@ export async function listUpcoming(db: Db, now: Date): Promise<Reservation[]> {
     .where(gt(carReservations.endsAt, now))
     .orderBy(asc(carReservations.startsAt), asc(cars.name), asc(carReservations.id))
   return rows.map(toReservation)
+}
+
+// 予約の中身（メモを含む。CAR-F-005〜008）。家族の誰でも見られる。無ければ 404
+export async function loadReservationDetail(
+  db: Db,
+  member: Member,
+  id: string,
+): Promise<ReservationDetail> {
+  const [row] = await selectReservationRows(db).where(eq(carReservations.id, id))
+  if (!row) fail(404, 'not_found', CAR_MESSAGES.reservationNotFound)
+  return toReservationDetail(row, member.id)
 }

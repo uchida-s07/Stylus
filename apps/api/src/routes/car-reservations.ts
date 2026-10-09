@@ -1,14 +1,15 @@
 import {
+  CAR_MESSAGES,
   createReservationInputSchema,
   reservationListQuerySchema,
   type ReservationListResponse,
 } from '@stylus/shared'
 import { Hono } from 'hono'
 import type { AppConfig } from '../app'
-import { listUpcoming } from '../car/list'
+import { listUpcoming, loadReservationDetail } from '../car/list'
 import { createReservation } from '../car/reservations'
 import type { AppHono } from '../env'
-import { jsonBody, queryInput } from '../validate'
+import { idParam, jsonBody, queryInput } from '../validate'
 
 // 予約（CAR-F-004〜008）。本人と状態の判定・重なりの知らせは car/ で行う
 // 「今」は API の時計（AppConfig.now）で決める
@@ -29,5 +30,10 @@ export function carReservationsRoute(config: Pick<AppConfig, 'now'>) {
           return c.json(reservation, 201)
         },
       )
+      // 予約の中身（CAR-F-005〜008）
+      .get('/:id', idParam(CAR_MESSAGES.reservationNotFound), async (c) => {
+        const { id } = c.req.valid('param')
+        return c.json(await loadReservationDetail(c.var.db, c.var.member, id))
+      })
   )
 }
