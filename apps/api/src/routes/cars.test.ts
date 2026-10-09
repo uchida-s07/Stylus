@@ -218,4 +218,78 @@ describe('車の API（CAR-F-001〜003・009）', () => {
       })
     })
   })
+
+  describe('削除（CAR-F-003）', () => {
+    const remove = (id: string, who: FamilyKey = 'seigo') => t.call(who, 'DELETE', `/cars/${id}`)
+
+    // 終わった予約（今は 2026-10-07 20:00）
+    const endedReservation = () =>
+      t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-07 08:00',
+        to: '2026-10-07 10:00',
+      })
+
+    it('[CAR-F-003/AC-1] 予約が1件も入ったことのない「ノア」を削除すると、車の一覧から消える', async () => {
+      const car = await t.insertCar('ノア')
+      const res = await remove(car.id)
+      expect(await names('mother')).toEqual(['BMW'])
+      expect(res.status).toBe(204)
+    })
+
+    it('[CAR-F-003/AC-2] 終わった予約が1件だけある「ノア」は、予約がある車として返る（「削除」を出さない）', async () => {
+      await t.insertCar('ノア')
+      await endedReservation()
+      expect((await list()).find((c) => c.name === 'ノア')).toMatchObject({
+        hasReservations: true,
+        upcomingCount: 0,
+      })
+    })
+
+    it('[CAR-F-003/AC-3] 終わった予約が1件だけある「ノア」の削除の API を呼ぶと、409 が返り「ノア」は残る', async () => {
+      const car = await t.insertCar('ノア')
+      await endedReservation()
+      const res = await remove(car.id)
+      expect(await names()).toEqual(['BMW', 'ノア'])
+      await expectError(res, 409, 'in_use')
+    })
+
+    it('[CAR-F-003/AC-4] 取り消した予約しか無い「ノア」は削除される', async () => {
+      const car = await t.insertCar('ノア')
+      const reservation = await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+      })
+      // 取り消した予約は行が消える
+      await t.deleteReservation(reservation.id)
+      const res = await remove(car.id)
+      expect(await names()).toEqual(['BMW'])
+      expect(res.status).toBe(204)
+    })
+
+    it('[CAR-F-003/AC-5] 削除の確認を開いている間にくうごが「ノア」を予約したら、削除されず「この車には予約があるため削除できません。使わないにしてください。」', async () => {
+      const car = await t.insertCar('ノア')
+      // 確認を開いた後（削除の要求の前）に、くうごが予約した
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+      })
+      const res = await remove(car.id)
+      expect(await names()).toEqual(['BMW', 'ノア'])
+      const error = await expectError(res, 409, 'in_use')
+      expect(error.message).toBe('この車には予約があるため削除できません。使わないにしてください。')
+    })
+
+    it('[CAR-F-003/AC-7] 削除の確認を開いている間に母が「ノア」を削除していたら「この車は見つかりません。」', async () => {
+      const car = await t.insertCar('ノア')
+      expect((await remove(car.id, 'mother')).status).toBe(204)
+      const error = await expectError(await remove(car.id), 404, 'not_found')
+      expect(error.message).toBe('この車は見つかりません。')
+    })
+  })
 })

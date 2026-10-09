@@ -75,5 +75,26 @@ export function carsRoute(config: Pick<AppConfig, 'now'>) {
           throw error
         }
       })
+      // 削除（CAR-F-003）。予約が1件でもあれば外部キー（RESTRICT）が止める。確認を開いた後に入った予約も同じ
+      // 取り消した予約は行が消えているので数えない
+      .delete('/:id', idParam(CAR_MESSAGES.carNotFound), async (c) => {
+        const { id } = c.req.valid('param')
+        try {
+          const deleted = await c.var.db
+            .delete(cars)
+            .where(eq(cars.id, id))
+            .returning({ id: cars.id })
+          if (deleted.length === 0) {
+            return c.json(apiError('not_found', CAR_MESSAGES.carNotFound), 404)
+          }
+          return c.body(null, 204)
+        } catch (error) {
+          const code = pgErrorCode(error)
+          if (code === PG.RESTRICT_VIOLATION || code === PG.FOREIGN_KEY_VIOLATION) {
+            return c.json(apiError('in_use', CAR_MESSAGES.carInUse), 409)
+          }
+          throw error
+        }
+      })
   )
 }

@@ -83,6 +83,11 @@ export async function createCarTestApp(overrides: Partial<AppConfig> = {}) {
     return row!
   }
 
+  // 予約を DB から直接消す（取り消した、を用意する）
+  async function deleteReservation(id: string) {
+    await t.db.delete(carReservations).where(eq(carReservations.id, id))
+  }
+
   async function reservationRows() {
     return t.db.select().from(carReservations)
   }
@@ -101,6 +106,7 @@ export async function createCarTestApp(overrides: Partial<AppConfig> = {}) {
     deleteCar,
     carId,
     insertReservation,
+    deleteReservation,
     reservationRows,
     findReservation,
   }
