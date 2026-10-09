@@ -4,6 +4,8 @@ import type { z } from 'zod'
 import type { Db } from '../db/client'
 import { carReservations, cars } from '../db/schema'
 import type { Member } from '../env'
+import { PG, pgErrorCode } from '../validate'
+import { failOverlap } from './conflict'
 import { selectReservationRows, toReservation } from './list'
 
 export type ReservationCreateInput = z.output<ReturnType<typeof createReservationInputSchema>>
@@ -15,7 +17,14 @@ export async function createReservation(
   member: Member,
   input: ReservationCreateInput,
 ): Promise<Reservation> {
-  const inserted = await insertIfCarActive(db, member, input)
+  let inserted: { id: string } | undefined
+  try {
+    inserted = await insertIfCarActive(db, member, input)
+  } catch (error) {
+    // 同じ車で時間が重なる予約がある。同時に送られた2つは、後に保存しようとした方がここに来る
+    if (pgErrorCode(error) === PG.EXCLUSION_VIOLATION) return failOverlap(db, input)
+    throw error
+  }
   if (!inserted) throw new Error('車が「使う」でない')
   return loadReservation(db, inserted.id)
 }

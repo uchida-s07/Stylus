@@ -205,4 +205,59 @@ describe('予約の API（CAR-F-004〜008）', () => {
       expect(row).toMatchObject({ destination: '大学', memo: null })
     })
   })
+
+  describe('時間が重なる予約を止める（CAR-F-004）', () => {
+    it('[CAR-F-004/AC-2] 母の「ノア」10:00〜11:00 があるとき、くうごの 9:00〜12:00 は作られず、重なった母の予約が知らされる', async () => {
+      const mother = await t.insertReservation({
+        car: 'ノア',
+        who: 'mother',
+        from: '2026-10-10 10:00',
+        to: '2026-10-10 11:00',
+      })
+      const res = await reserve('kugo', { from: '2026-10-10 09:00', to: '2026-10-10 12:00' })
+      expect((await t.reservationRows()).map((r) => r.id)).toEqual([mother.id])
+      const error = await expectError(res, 409, 'overlap')
+      expect(error.conflict).toEqual({
+        displayName: '母',
+        startsAt: jstIso('2026-10-10 10:00'),
+        endsAt: jstIso('2026-10-10 11:00'),
+      })
+    })
+
+    it('[CAR-F-004/AC-4] くうごの「ノア」9:00〜12:00 があるとき、母の 11:59〜15:00 は作られない', async () => {
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+      })
+      const res = await reserve('mother', { from: '2026-10-10 11:59', to: '2026-10-10 15:00' })
+      expect(await t.reservationRows()).toHaveLength(1)
+      await expectError(res, 409, 'overlap')
+    })
+
+    it('[CAR-F-004/AC-6] くうごの 9:00〜12:00 とせいごの 10:00〜13:00 が同時に呼ばれると、1件だけでき、もう一方には 409', async () => {
+      const results = await Promise.all([
+        reserve('kugo', { from: '2026-10-10 09:00', to: '2026-10-10 12:00' }),
+        reserve('seigo', { from: '2026-10-10 10:00', to: '2026-10-10 13:00' }),
+      ])
+      expect(await t.reservationRows()).toHaveLength(1)
+      expect(results.map((r) => r.status).sort()).toEqual([201, 409])
+      const lost = results.find((r) => r.status === 409)!
+      await expectError(lost, 409, 'overlap')
+    })
+
+    // AC ではない確認
+    it('自分の予約と重なるときも止める', async () => {
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+      })
+      const res = await reserve('kugo', { from: '2026-10-10 11:00', to: '2026-10-10 13:00' })
+      const error = await expectError(res, 409, 'overlap')
+      expect(error.conflict?.displayName).toBe('くうご')
+    })
+  })
 })

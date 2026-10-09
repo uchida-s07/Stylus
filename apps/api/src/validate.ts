@@ -65,4 +65,6 @@ export const PG = {
   FOREIGN_KEY_VIOLATION: '23503',
   // ON DELETE RESTRICT の違反
   RESTRICT_VIOLATION: '23001',
+  // 排他制約の違反（同じ車で時間が重なる予約）
+  EXCLUSION_VIOLATION: '23P01',
 } as const
