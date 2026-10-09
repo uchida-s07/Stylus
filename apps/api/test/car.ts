@@ -47,6 +47,11 @@ export async function createCarTestApp(overrides: Partial<AppConfig> = {}) {
     return row!
   }
 
+  // 車を DB から直接消す（ほかの家族が削除した、を用意する）
+  async function deleteCar(id: string) {
+    await t.db.delete(cars).where(eq(cars.id, id))
+  }
+
   async function carId(name: string) {
     const [row] = await t.db.select().from(cars).where(eq(cars.name, name))
     if (!row) throw new Error(`車 ${name} が無い`)
@@ -93,6 +98,7 @@ export async function createCarTestApp(overrides: Partial<AppConfig> = {}) {
     setNow,
     call,
     insertCar,
+    deleteCar,
     carId,
     insertReservation,
     reservationRows,

@@ -85,4 +85,73 @@ describe('車の API（CAR-F-001〜003・009）', () => {
       expect(await names()).toEqual(['BMW', 'アクア', 'フィット'])
     })
   })
+
+  describe('使わない・使う（CAR-F-002）', () => {
+    const setActive = (id: string, isActive: boolean, who: FamilyKey = 'mother') =>
+      t.call(who, 'PATCH', `/cars/${id}`, { isActive })
+
+    async function noah() {
+      return (await list()).find((c) => c.name === 'ノア')
+    }
+
+    it('[CAR-F-002/AC-1] 母が「使う」の車「ノア」を「使わない」にすると、「ノア」は「使わない」になる', async () => {
+      const car = await t.insertCar('ノア')
+      const res = await setActive(car.id, false)
+      expect(await noah()).toMatchObject({ isActive: false })
+      expect(res.status).toBe(200)
+      expect(carSchema.parse(await res.json())).toMatchObject({ name: 'ノア', isActive: false })
+    })
+
+    it('[CAR-F-002/AC-2] 「使わない」の車「ノア」を「使う」に戻すと、「ノア」は「使う」になる', async () => {
+      const car = await t.insertCar('ノア', false)
+      const res = await setActive(car.id, true)
+      expect(await noah()).toMatchObject({ isActive: true })
+      expect(res.status).toBe(200)
+    })
+
+    it('[CAR-F-002/AC-3] くうごのこれからの予約が1件ある「ノア」は、件数1と出て、「使わない」にした後も予約は残る', async () => {
+      const car = await t.insertCar('ノア')
+      const reservation = await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+      })
+      expect(await noah()).toMatchObject({ upcomingCount: 1, hasReservations: true })
+      expect((await setActive(car.id, false)).status).toBe(200)
+      expect(await t.findReservation(reservation.id)).toBeDefined()
+      expect(await noah()).toMatchObject({ isActive: false, upcomingCount: 1 })
+    })
+
+    it('[CAR-F-002/AC-5] 確認を開いている間にせいごが「ノア」を削除していたら「この車は見つかりません。」', async () => {
+      const car = await t.insertCar('ノア')
+      await t.deleteCar(car.id)
+      const error = await expectError(await setActive(car.id, false), 404, 'not_found')
+      expect(error.message).toBe('この車は見つかりません。')
+    })
+
+    it('[CAR-F-002/AC-6] 確認を開いている間にせいごが「ノア」を「使わない」にしていても、母の操作はそのまま成功する', async () => {
+      const car = await t.insertCar('ノア')
+      expect((await setActive(car.id, false, 'seigo')).status).toBe(200)
+      const res = await setActive(car.id, false)
+      expect(await noah()).toMatchObject({ isActive: false })
+      expect(res.status).toBe(200)
+    })
+
+    // AC ではない確認
+    it('これからの予約の件数に、終わった予約は数えない', async () => {
+      await t.insertCar('ノア')
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-07 08:00',
+        to: '2026-10-07 10:00',
+      })
+      expect(await noah()).toMatchObject({ upcomingCount: 0, hasReservations: true })
+    })
+
+    it('ID が uuid の形でなければ 404 not_found', async () => {
+      await expectError(await setActive('abc', false), 404, 'not_found')
+    })
+  })
 })

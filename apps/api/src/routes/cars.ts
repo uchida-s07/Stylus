@@ -1,13 +1,23 @@
-import { CAR_MESSAGES, carInputSchema, type Car, type CarListResponse } from '@stylus/shared'
-import { asc, sql } from 'drizzle-orm'
+import {
+  CAR_MESSAGES,
+  carInputSchema,
+  carPatchSchema,
+  type Car,
+  type CarListResponse,
+} from '@stylus/shared'
+import { asc, eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { AppConfig } from '../app'
 import { carReservations, cars } from '../db/schema'
 import type { AppHono } from '../env'
 import { apiError } from '../errors'
-import { jsonBody, PG, pgErrorCode } from '../validate'
+import { idParam, jsonBody, PG, pgErrorCode } from '../validate'
 
 const carColumns = { id: cars.id, name: cars.name, isActive: cars.isActive }
+
+// サブクエリから外側の cars の行を指す。1つの表だけの select では、Drizzle は列を表の名前なしで出すので、
+// ${cars.id} と書くとサブクエリの中では car_reservations.id を指してしまう
+const outerCarId = sql`${sql.identifier('cars')}.${sql.identifier('id')}`
 
 // 車（CAR-F-001〜003・009）。家族の誰でも見られ、登録・変更・削除できる
 export function carsRoute(config: Pick<AppConfig, 'now'>) {
@@ -19,9 +29,9 @@ export function carsRoute(config: Pick<AppConfig, 'now'>) {
         const rows = await c.var.db
           .select({
             ...carColumns,
-            hasReservations: sql<boolean>`exists (select 1 from ${carReservations} where ${carReservations.carId} = ${cars.id})`,
+            hasReservations: sql<boolean>`exists (select 1 from ${carReservations} where ${carReservations.carId} = ${outerCarId})`,
             upcomingCount:
-              sql<number>`(select count(*) from ${carReservations} where ${carReservations.carId} = ${cars.id} and ${carReservations.endsAt} > ${now}::timestamptz)`.mapWith(
+              sql<number>`(select count(*) from ${carReservations} where ${carReservations.carId} = ${outerCarId} and ${carReservations.endsAt} > ${now}::timestamptz)`.mapWith(
                 Number,
               ),
           })
@@ -36,6 +46,28 @@ export function carsRoute(config: Pick<AppConfig, 'now'>) {
           const [row] = await c.var.db.insert(cars).values({ name }).returning(carColumns)
           // insert … returning は1行を返す
           return c.json(row as Car, 201)
+        } catch (error) {
+          if (pgErrorCode(error) === PG.UNIQUE_VIOLATION) {
+            return c.json(apiError('duplicate_name', CAR_MESSAGES.duplicateName), 409)
+          }
+          throw error
+        }
+      })
+      // 名前を変える（CAR-F-009）、使う／使わないを切り替える（CAR-F-002）。送られた項目だけを変える
+      // 版は持たない（結果の値を送るだけなので、同じ値にする操作はそのまま成功。design.md「車」）
+      .patch('/:id', idParam(CAR_MESSAGES.carNotFound), jsonBody(carPatchSchema), async (c) => {
+        const { id } = c.req.valid('param')
+        const input = c.req.valid('json')
+        const changes =
+          input.name !== undefined ? { name: input.name } : { isActive: input.isActive }
+        try {
+          const [row] = await c.var.db
+            .update(cars)
+            .set(changes)
+            .where(eq(cars.id, id))
+            .returning(carColumns)
+          if (!row) return c.json(apiError('not_found', CAR_MESSAGES.carNotFound), 404)
+          return c.json(row satisfies Car)
         } catch (error) {
           if (pgErrorCode(error) === PG.UNIQUE_VIOLATION) {
             return c.json(apiError('duplicate_name', CAR_MESSAGES.duplicateName), 409)
