@@ -1,5 +1,6 @@
 import {
   CAR_MESSAGES,
+  createReservationEditSchema,
   createReservationInputSchema,
   reservationListQuerySchema,
   type ReservationListResponse,
@@ -8,6 +9,7 @@ import { Hono } from 'hono'
 import type { AppConfig } from '../app'
 import { listPast, listUpcoming, loadReservationDetail } from '../car/list'
 import { createReservation } from '../car/reservations'
+import { updateReservation } from '../car/update'
 import type { AppHono } from '../env'
 import { idParam, jsonBody, queryInput } from '../validate'
 
@@ -38,5 +40,17 @@ export function carReservationsRoute(config: Pick<AppConfig, 'now'>) {
         const { id } = c.req.valid('param')
         return c.json(await loadReservationDetail(c.var.db, c.var.member, id))
       })
+      // 予約を直す（CAR-F-006）。送る項目の形で、まだ始まっていない予約の直し方か使用中の予約の直し方かが決まる
+      .patch(
+        '/:id',
+        idParam(CAR_MESSAGES.reservationNotFound),
+        jsonBody(() => createReservationEditSchema(config.now())),
+        async (c) => {
+          const { id } = c.req.valid('param')
+          return c.json(
+            await updateReservation(c.var.db, c.var.member, id, c.req.valid('json'), config.now()),
+          )
+        },
+      )
   )
 }

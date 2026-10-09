@@ -61,6 +61,46 @@ describe('予約の API（CAR-F-004〜008）', () => {
     return `${r.car.name} ${r.member.displayName} ${at(r.startsAt)}〜${at(r.endsAt)}`
   }
 
+  type Row = Awaited<ReturnType<CarTestApp['insertReservation']>>
+
+  // まだ始まっていない予約の直し方（車・開始を含む）。送らない項目は今の値
+  async function editBody(
+    r: Row,
+    changes: {
+      car?: string
+      from?: string
+      to?: string
+      destination?: string | null
+      memo?: string | null
+      version?: number
+    } = {},
+  ) {
+    return {
+      carId: changes.car ? await t.carId(changes.car) : r.carId,
+      startsAt: changes.from ? jstIso(changes.from) : r.startsAt.toISOString(),
+      endsAt: changes.to ? jstIso(changes.to) : r.endsAt.toISOString(),
+      destination: changes.destination !== undefined ? changes.destination : r.destination,
+      memo: changes.memo !== undefined ? changes.memo : r.memo,
+      version: changes.version ?? r.version,
+    }
+  }
+
+  function edit(who: FamilyKey, id: string, body: unknown) {
+    return t.call(who, 'PATCH', `/car-reservations/${id}`, body)
+  }
+
+  // くうごの「ノア」10月10日 9:00〜12:00
+  function kugoReservation(from = '2026-10-10 09:00', to = '2026-10-10 12:00') {
+    return t.insertReservation({ car: 'ノア', who: 'kugo', from, to })
+  }
+
+  async function periodOf(id: string) {
+    const row = await t.findReservation(id)
+    return row && `${row.startsAt.toISOString()}〜${row.endsAt.toISOString()}`
+  }
+
+  const period = (from: string, to: string) => `${jstIso(from)}〜${jstIso(to)}`
+
   describe('予約の登録と予定の基本（CAR-F-004）', () => {
     it('[CAR-F-004/AC-1] くうごが「ノア」を 10月10日 9:00〜12:00・行き先「大学」で予約すると、予約が1件でき、母の予定に出る', async () => {
       const res = await reserve('kugo', {
@@ -551,6 +591,66 @@ describe('予約の API（CAR-F-004〜008）', () => {
         400,
         'invalid_input',
       )
+    })
+  })
+
+  describe('まだ始まっていない予約を直す（CAR-F-006）', () => {
+    it('[CAR-F-006/AC-1] くうごが 10月10日 9:00〜12:00 を 13:00〜16:00 に直すと、予定に 13:00〜16:00 で出る', async () => {
+      const r = await kugoReservation()
+      const res = await edit(
+        'kugo',
+        r.id,
+        await editBody(r, { from: '2026-10-10 13:00', to: '2026-10-10 16:00' }),
+      )
+      expect((await upcoming()).map(summary)).toEqual(['ノア くうご 10-10 13:00〜10-10 16:00'])
+      expect(res.status).toBe(200)
+      expect(reservationDetailSchema.parse(await res.json())).toMatchObject({
+        version: 2,
+        isMine: true,
+      })
+    })
+
+    it('[CAR-F-006/AC-2] 重なりで止められた母の 10:00〜11:00 は、くうごが 11:00〜12:00 に直した後なら予約でき、予定に2件とも出る', async () => {
+      const r = await kugoReservation()
+      await expectError(
+        await reserve('mother', { from: '2026-10-10 10:00', to: '2026-10-10 11:00' }),
+        409,
+        'overlap',
+      )
+      expect(
+        (await edit('kugo', r.id, await editBody(r, { from: '2026-10-10 11:00' }))).status,
+      ).toBe(200)
+      const res = await reserve('mother', { from: '2026-10-10 10:00', to: '2026-10-10 11:00' })
+      expect((await upcoming()).map(summary)).toEqual([
+        'ノア 母 10-10 10:00〜10-10 11:00',
+        'ノア くうご 10-10 11:00〜10-10 12:00',
+      ])
+      expect(res.status).toBe(201)
+    })
+
+    it('[CAR-F-006/AC-3] くうごが 9:00〜12:00 を 10:00〜12:00 に直すと保存される（直す前の自分の予約とは重ならない扱い）', async () => {
+      const r = await kugoReservation()
+      const res = await edit('kugo', r.id, await editBody(r, { from: '2026-10-10 10:00' }))
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 10:00', '2026-10-10 12:00'))
+      expect(res.status).toBe(200)
+    })
+
+    it('[CAR-F-006/AC-4] せいごの 13:00〜14:00 があるとき、くうごが 9:00〜13:30 に直すと保存されず、せいごの予約と重なると知らされ、9:00〜12:00 のまま', async () => {
+      const r = await kugoReservation()
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'seigo',
+        from: '2026-10-10 13:00',
+        to: '2026-10-10 14:00',
+      })
+      const res = await edit('kugo', r.id, await editBody(r, { to: '2026-10-10 13:30' }))
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
+      const error = await expectError(res, 409, 'overlap')
+      expect(error.conflict).toEqual({
+        displayName: 'せいご',
+        startsAt: jstIso('2026-10-10 13:00'),
+        endsAt: jstIso('2026-10-10 14:00'),
+      })
     })
   })
 })
