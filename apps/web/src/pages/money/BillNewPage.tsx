@@ -9,7 +9,7 @@ import { ErrorScreen } from '../../components/ErrorScreen'
 import { Loading } from '../../components/Loading'
 import { BillForm } from './BillForm'
 import { formErrors, formToInput, type BillFormValues, type SendResult } from './billFormValues'
-import { combineResults, useApiLoad } from './useApiLoad'
+import { combineResults, useApiLoad } from '../../components/useApiLoad'
 
 // 請求の入力（MONEY-F-001）
 export function BillNewPage() {

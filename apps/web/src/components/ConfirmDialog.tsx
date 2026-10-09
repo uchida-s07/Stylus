@@ -1,7 +1,7 @@
 import { Button, Group, Modal } from '@mantine/core'
 import { useState } from 'react'
 
-// 操作の確認（お金の画面で共通）。「キャンセル」なら何もせず閉じる
+// 操作の確認（お金・車の画面で共通）。「キャンセル」なら何もせず閉じる
 // 右上の閉じるボタン（×）は出さない（「キャンセル」がある。ログアウトの確認と揃える）
 export function ConfirmDialog({
   opened,

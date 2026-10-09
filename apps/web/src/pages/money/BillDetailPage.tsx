@@ -19,8 +19,8 @@ import { callApi, WRITE_MESSAGES, type ApiResult } from '../../api/responses'
 import { useLeaveAsUnregistered } from '../../auth/unregistered'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { Loading } from '../../components/Loading'
-import { ConfirmDialog } from './ConfirmDialog'
-import { NoticeScreen } from './NoticeScreen'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { NoticeScreen } from '../../components/NoticeScreen'
 import { ReturnDialog } from './ReturnDialog'
 import {
   BILL_CHANGED,
@@ -33,7 +33,7 @@ import {
   settlementLabel,
   yen,
 } from './format'
-import { useApiLoad } from './useApiLoad'
+import { useApiLoad } from '../../components/useApiLoad'
 
 // 確認の画面で行う操作（直す・差し戻すは別の画面・入力で行う）
 type ConfirmAction = Exclude<BillAction, 'edit' | 'return'>
@@ -100,7 +100,14 @@ export function BillDetailPage() {
   if (state.kind === 'loading') return <Loading />
   if (state.kind === 'error') {
     if (state.code === 'not_found') {
-      return <NoticeScreen title="請求" message="この請求は見つかりません。" />
+      return (
+        <NoticeScreen
+          backTo="/money"
+          backLabel="お金へ"
+          title="請求"
+          message="この請求は見つかりません。"
+        />
+      )
     }
     return <ErrorScreen kind={state.error} />
   }

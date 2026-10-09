@@ -201,11 +201,12 @@ spec-review で「/spec-plan と実装の中で拾う」とした6件。どれ�
 
 ## 5. 画面
 
-- [ ] T-21: お金の画面の部品を `apps/web/src/components` へ移す
+- [x] T-21: お金の画面の部品を `apps/web/src/components` へ移す
   - 対応: spec「3. 変更差分」画面（領域をまたぐ部品の共有。AC なし）
   - 対象ファイル: `apps/web/src/pages/money/{useApiLoad.ts,NoticeScreen.tsx,ConfirmDialog.tsx}` → `apps/web/src/components/`、お金の画面の import、`NoticeScreen` の戻り先（「お金へ」と `/money`）を引数にする
   - Red: 対象外（振る舞いを変えない移動）
   - 完了条件: お金の画面の既存テストを変えずに、テスト全体と lint が通る
+  - 結果: 2026-10-09。3つの部品を `git mv` で移し、`NoticeScreen` に戻り先（`backTo`・`backLabel`）を足して、お金の画面からは「お金へ」と `/money` を渡すようにした。お金の画面のテストは変えずに web のテスト 126件が通り、lint も通った
 
 - [ ] T-22: 車の画面とホームの「車」
   - 対応: CAR-F-005 / AC-1（画面）, AC-2（画面）, AC-3（画面）, AC-4（画面）, AC-6, AC-7, AC-8、CAR-F-004 / AC-9（画面）
