@@ -9,7 +9,7 @@ import { and, eq, gt, sql } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { carReservations } from '../db/schema'
 import type { Member } from '../env'
-import { fail } from '../errors'
+import { fail, failInput } from '../errors'
 import { PG, pgErrorCode } from '../validate'
 import { failOverlap } from './conflict'
 import { loadReservationDetail } from './list'
@@ -26,17 +26,25 @@ export async function updateReservation(
 ): Promise<ReservationDetail> {
   const current = await loadOwnReservation(db, member, id)
   checkPhase(input.kind, reservationPhase(current.startsAt, current.endsAt, now))
-  if (input.kind !== 'not_started') throw new Error('使用中の予約の直し方はまだ無い')
-
-  const changes = {
-    carId: input.carId,
-    startsAt: input.startsAt,
-    endsAt: input.endsAt,
-    destination: input.destination,
-    memo: input.memo,
+  // 使用中の予約の直し方：開始日時は送られないので、保存してある開始日時と比べる（tasks.md D-2）
+  // 使用中の予約の開始日時は本人しか変えられず、使用中には変えられないので、読んだ値と比べて足りる
+  if (input.kind === 'in_use' && input.endsAt.getTime() <= current.startsAt.getTime()) {
+    failInput({ endsAt: CAR_MESSAGES.endNotAfterStart })
   }
+
+  const changes =
+    input.kind === 'not_started'
+      ? {
+          carId: input.carId,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+          destination: input.destination,
+          memo: input.memo,
+        }
+      : // 使用中の予約は、車と開始日時を変えない。終了は今より前でもよい（早く返した時刻を残す）
+        { endsAt: input.endsAt, destination: input.destination, memo: input.memo }
   try {
-    // 状態の判定と更新の間に予約が始まる場合に備えて、時刻の条件も入れる
+    // 状態の判定と更新の間に予約が始まる・終わる場合に備えて、時刻の条件も入れる（要求の形で選ぶ）
     // 同じ行の更新なので、排他制約は直す前の自分の予約とは比べない
     const updated = await db
       .update(carReservations)
@@ -46,14 +54,21 @@ export async function updateReservation(
           eq(carReservations.id, id),
           eq(carReservations.memberId, member.id),
           eq(carReservations.version, input.version),
-          gt(carReservations.startsAt, now),
+          input.kind === 'not_started'
+            ? gt(carReservations.startsAt, now)
+            : gt(carReservations.endsAt, now),
         ),
       )
       .returning({ id: carReservations.id })
     if (updated.length === 0) await failNotUpdated(db, member, id, input.kind, now)
   } catch (error) {
     if (pgErrorCode(error) === PG.EXCLUSION_VIOLATION) {
-      return failOverlap(db, { ...changes, exceptId: id })
+      return failOverlap(db, {
+        carId: input.kind === 'not_started' ? input.carId : current.carId,
+        startsAt: input.kind === 'not_started' ? input.startsAt : current.startsAt,
+        endsAt: input.endsAt,
+        exceptId: id,
+      })
     }
     throw error
   }

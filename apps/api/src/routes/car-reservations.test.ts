@@ -801,4 +801,45 @@ describe('予約の API（CAR-F-004〜008）', () => {
       expect(error.message).toBe('この予約はもう終わっているため直せません。')
     })
   })
+
+  describe('使用中の予約の直し方（CAR-F-006）', () => {
+    async function pastList() {
+      const res = await t.call('father', 'GET', '/car-reservations?view=past')
+      return reservationListResponseSchema.parse(await res.json()).reservations
+    }
+
+    it('[CAR-F-006/AC-7] 10月10日 10:00、使用中の 9:00〜12:00 の終了を 9:40 に直すと、予定には出ず、履歴に 9:00〜9:40 で出る', async () => {
+      const r = await kugoReservation()
+      t.setNow('2026-10-10 10:00')
+      const res = await edit('kugo', r.id, inUseBody(r, { to: '2026-10-10 09:40' }))
+      expect(await upcoming()).toEqual([])
+      expect((await pastList()).map(summary)).toEqual(['ノア くうご 10-10 09:00〜10-10 09:40'])
+      expect(res.status).toBe(200)
+    })
+
+    it('[CAR-F-006/AC-8] 10月10日 10:00、使用中の 9:00〜12:00 の終了を 14:00 に直すと、予定に 9:00〜14:00 で出る', async () => {
+      const r = await kugoReservation()
+      t.setNow('2026-10-10 10:00')
+      const res = await edit('kugo', r.id, inUseBody(r, { to: '2026-10-10 14:00' }))
+      expect((await upcoming()).map(summary)).toEqual(['ノア くうご 10-10 09:00〜10-10 14:00'])
+      expect(res.status).toBe(200)
+    })
+
+    // AC ではない確認（tasks.md D-2）
+    it('使用中の予約の終了を開始と同じ 9:00 に直すと、400 で終了に「終了は開始より後にしてください」、予約は変わらない', async () => {
+      const r = await kugoReservation()
+      t.setNow('2026-10-10 10:00')
+      const res = await edit('kugo', r.id, inUseBody(r, { to: '2026-10-10 09:00' }))
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
+      const error = await expectError(res, 400, 'invalid_input')
+      expect(error.fields?.endsAt).toBe('終了は開始より後にしてください')
+    })
+
+    it('使用中の予約の直し方が、まだ始まっていない予約に届いたら 409 で変わらない', async () => {
+      const r = await kugoReservation()
+      const res = await edit('kugo', r.id, inUseBody(r, { to: '2026-10-10 13:00' }))
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
+      await expectError(res, 409, 'state_changed')
+    })
+  })
 })
