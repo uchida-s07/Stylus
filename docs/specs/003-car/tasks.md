@@ -65,6 +65,7 @@ spec-review で「/spec-plan と実装の中で拾う」とした6件。どれ�
   - 内容: spec/003-car を push し、Deploy API を手動で実行して stylus-dev にマイグレーション 0004 を流す（002 の T-32 と同じやり方）。流れなければ、Supabase の管理画面（Database → Extensions）で `btree_gist` を先に有効にしてから流し直す。流れたら、開発の DB で同じ車に重なる2行を入れようとして `23P01` で拒否されることを確かめ、確かめた行は消す
   - Red: 対象外（外部の環境の検証）
   - 完了条件: マイグレーションが stylus-dev に当たり、排他制約が働くことが design.md に書かれている。だめなら止めて、spec を直す流れに入っている
+  - 経過: 2026-10-09 に T-1 までを push し、Deploy API を spec/003-car で手動実行した（https://github.com/uchida-s07/Stylus/actions/runs/37876975499 ）。実行の結果と、開発の DB での `23P01` の確認は、まだ済んでいない（オーナーの確認待ち）
 
 ## 2. 共有のルール
 
@@ -108,11 +109,11 @@ spec-review で「/spec-plan と実装の中で拾う」とした6件。どれ�
 
 ## 4. API（予約）
 
-- [ ] T-8: 予約の登録と予定の基本
+- [x] T-8: 予約の登録と予定の基本
   - 対応: CAR-F-004 / AC-1（API）, AC-3, AC-5, AC-9（API）, AC-11
   - 対象ファイル: `apps/api/src/car/reservations.ts`（登録の文。車が「使う」であることを挿入の条件に入れる）、`apps/api/src/routes/car-reservations.ts`、`apps/api/src/routes/car-reservations.test.ts`、`apps/api/src/app.ts`
   - 内容: `POST /car-reservations`（201 で予約を返す）、`GET /car-reservations?view=upcoming`（`ends_at > now` を開始の早い順、車の名前・「使わない」の印・予約した家族の表示名を結合）。重なり・入力の検証・車の状態・二重登録は後のタスク
-  - Red: 未記録（想定：中身の無いルート（登録は 201 で `{}`、一覧は空）で、AC-1 は母の予定に予約が無い、AC-3・AC-5・AC-9・AC-11 は予約が作られない（応答が予約の形でない））
+  - Red: 2026-10-09 実行。中身の無いルート（登録は 201 で `{}` を返し保存しない、予定は空）で 5件失敗：AC-1 は予約の行が0件（1件のはずが0件）、AC-3・AC-5・AC-9・AC-11 は予定が `[]`（作られるはずの予約が出ない）。テストは、データの結果（行の数・予定）を応答の状態コードより先に確かめる並びにした
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
 - [ ] T-9: 予約の登録の入力の検証

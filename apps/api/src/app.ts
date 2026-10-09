@@ -8,6 +8,7 @@ import { dbMiddleware } from './middleware/db'
 import { memberMiddleware } from './middleware/member'
 import { billCategoriesRoute } from './routes/bill-categories'
 import { billsRoute } from './routes/bills'
+import { carReservationsRoute } from './routes/car-reservations'
 import { carsRoute } from './routes/cars'
 import { membersRoute } from './routes/members'
 import { settlementsRoute } from './routes/settlements'
@@ -40,6 +41,7 @@ export function createApp(config: AppConfig) {
     .route('/settlements', settlementsRoute(config))
     .route('/bill-categories', billCategoriesRoute)
     .route('/cars', carsRoute(config))
+    .route('/car-reservations', carReservationsRoute(config))
 }
 
 // フロントの Hono RPC（hc<AppType>）が import type で使う
