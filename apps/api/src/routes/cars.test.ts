@@ -154,4 +154,68 @@ describe('車の API（CAR-F-001〜003・009）', () => {
       await expectError(await setActive('abc', false), 404, 'not_found')
     })
   })
+
+  describe('名前を変える（CAR-F-009）', () => {
+    const rename = (id: string, name: string, who: FamilyKey = 'mother') =>
+      t.call(who, 'PATCH', `/cars/${id}`, { name })
+
+    it('[CAR-F-009/AC-2] 名前を空白だけにして保存すると、名前は「ノア」のままで「入力してください」', async () => {
+      const car = await t.insertCar('ノア')
+      const res = await rename(car.id, '　 ')
+      expect(await names()).toEqual(['BMW', 'ノア'])
+      const error = await expectError(res, 400, 'invalid_input')
+      expect(error.fields?.name).toBe('入力してください')
+    })
+
+    it('[CAR-F-009/AC-3] 「フィット」の名前を「ノア」に変えると、名前は「フィット」のままで「同じ名前の車があります」', async () => {
+      await t.insertCar('ノア')
+      const fit = await t.insertCar('フィット')
+      const res = await rename(fit.id, 'ノア')
+      expect(await names()).toEqual(['BMW', 'ノア', 'フィット'])
+      const error = await expectError(res, 409, 'duplicate_name')
+      expect(error.message).toBe('同じ名前の車があります')
+    })
+
+    it('[CAR-F-009/AC-4] 名前を21文字にして保存すると、名前は「ノア」のまま', async () => {
+      const car = await t.insertCar('ノア')
+      const res = await rename(car.id, 'あ'.repeat(21))
+      expect(await names()).toEqual(['BMW', 'ノア'])
+      await expectError(res, 400, 'invalid_input')
+    })
+
+    it('[CAR-F-009/AC-5] 名前を変えている間にせいごが「ノア」を削除していたら「この車は見つかりません。」', async () => {
+      const car = await t.insertCar('ノア')
+      await t.deleteCar(car.id)
+      const error = await expectError(await rename(car.id, 'ヴォクシー'), 404, 'not_found')
+      expect(error.message).toBe('この車は見つかりません。')
+    })
+
+    // AC ではない確認
+    it('前後の空白を除いた名前に変わる。自分と同じ名前のまま保存しても成功する', async () => {
+      const car = await t.insertCar('ノア')
+      expect((await rename(car.id, ' ヴォクシー　')).status).toBe(200)
+      expect(await names()).toEqual(['BMW', 'ヴォクシー'])
+      const res = await rename(car.id, 'ヴォクシー')
+      expect(res.status).toBe(200)
+      expect(carSchema.parse(await res.json()).name).toBe('ヴォクシー')
+    })
+
+    it('名前と使う／使わないの、どちらも無い・両方ある要求は 400 で、何も変わらない（tasks.md D-4）', async () => {
+      const car = await t.insertCar('ノア')
+      await expectError(
+        await t.call('mother', 'PATCH', `/cars/${car.id}`, {}),
+        400,
+        'invalid_input',
+      )
+      await expectError(
+        await t.call('mother', 'PATCH', `/cars/${car.id}`, { name: 'ヴォクシー', isActive: false }),
+        400,
+        'invalid_input',
+      )
+      expect((await list()).find((c) => c.id === car.id)).toMatchObject({
+        name: 'ノア',
+        isActive: true,
+      })
+    })
+  })
 })
