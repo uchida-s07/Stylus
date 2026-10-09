@@ -282,4 +282,48 @@ describe('予約の API（CAR-F-004〜008）', () => {
       expect(error.fields?.carId).toBe('この車は見つかりません。')
     })
   })
+
+  describe('予約の二重登録を防ぐ（CAR-F-004）', () => {
+    it('[CAR-F-004/AC-16] 「予約する」を続けて2回押しても（同じ request_id が2回届いても）、予約は1件だけできる', async () => {
+      const body = await reserveBody({ from: '2026-10-10 09:00', to: '2026-10-10 12:00' })
+      const results = await Promise.all([
+        t.call('kugo', 'POST', '/car-reservations', body),
+        t.call('kugo', 'POST', '/car-reservations', body),
+      ])
+      expect(await t.reservationRows()).toHaveLength(1)
+      expect(results.map((r) => r.status)).toEqual([201, 201])
+      const [a, b] = await Promise.all(
+        results.map(async (r) => reservationSchema.parse(await r.json())),
+      )
+      expect(a!.id).toBe(b!.id)
+    })
+
+    it('[CAR-F-004/AC-17] 1回目が保存された後に行き先を直して同じ request_id で送り直すと、1件のままで「この予約はすでに登録されています。…」', async () => {
+      const body = await reserveBody({
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+        destination: '大学',
+      })
+      expect((await t.call('kugo', 'POST', '/car-reservations', body)).status).toBe(201)
+      const res = await t.call('kugo', 'POST', '/car-reservations', { ...body, destination: '駅' })
+      const rows = await t.reservationRows()
+      expect(rows.map((r) => r.destination)).toEqual(['大学'])
+      const error = await expectError(res, 409, 'already_registered')
+      expect(error.message).toBe(
+        'この予約はすでに登録されています。予定で確かめて、必要なら直してください。',
+      )
+    })
+
+    // AC ではない確認
+    it('同じ中身を順に2回送ると、2回目は1回目の予約をそのまま返す', async () => {
+      const body = await reserveBody({ from: '2026-10-10 09:00', to: '2026-10-10 12:00' })
+      const first = reservationSchema.parse(
+        await (await t.call('kugo', 'POST', '/car-reservations', body)).json(),
+      )
+      const res = await t.call('kugo', 'POST', '/car-reservations', body)
+      expect(res.status).toBe(201)
+      expect(reservationSchema.parse(await res.json()).id).toBe(first.id)
+      expect(await t.reservationRows()).toHaveLength(1)
+    })
+  })
 })

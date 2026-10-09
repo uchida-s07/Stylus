@@ -18,12 +18,22 @@ export async function createReservation(
   member: Member,
   input: ReservationCreateInput,
 ): Promise<Reservation> {
+  // 同じ request_id の予約がすでにある（送り直し）。同じ中身を送り直すと一意制約と排他制約（自分の予約と
+  // 重なる）の両方に当たり、どちらの違反が返るかは決まらないので、挿入の前に引く
+  const existing = await sameRequestReservation(db, member, input)
+  if (existing) return existing
+
   let inserted: { id: string } | undefined
   try {
     inserted = await insertIfCarActive(db, member, input)
   } catch (error) {
-    // 同じ車で時間が重なる予約がある。同時に送られた2つは、後に保存しようとした方がここに来る
     const code = pgErrorCode(error)
+    // 続けて2回押したときのように、同時に挿入が走った：request_id で引き直す
+    if (code === PG.UNIQUE_VIOLATION || code === PG.EXCLUSION_VIOLATION) {
+      const again = await sameRequestReservation(db, member, input)
+      if (again) return again
+    }
+    // 同じ車で時間が重なる予約がある。同時に送られた2つは、後に保存しようとした方がここに来る
     if (code === PG.EXCLUSION_VIOLATION) return failOverlap(db, input)
     // 車の条件の確認の後に、その車が削除された
     if (code === PG.FOREIGN_KEY_VIOLATION) failInput({ carId: CAR_MESSAGES.carNotFound })
@@ -31,6 +41,30 @@ export async function createReservation(
   }
   if (!inserted) return failCarNotReservable(db, input.carId)
   return loadReservation(db, inserted.id)
+}
+
+// 同じ request_id の予約があれば、中身が同じならその予約を返し（CAR-F-004/AC-16）、
+// 違えば 409（AC-17。直した中身を黙って捨てない）。無ければ undefined
+async function sameRequestReservation(
+  db: Db,
+  member: Member,
+  input: ReservationCreateInput,
+): Promise<Reservation | undefined> {
+  const [row] = await db
+    .select()
+    .from(carReservations)
+    .where(
+      and(eq(carReservations.memberId, member.id), eq(carReservations.requestId, input.requestId)),
+    )
+  if (!row) return undefined
+  const same =
+    row.carId === input.carId &&
+    row.startsAt.getTime() === input.startsAt.getTime() &&
+    row.endsAt.getTime() === input.endsAt.getTime() &&
+    row.destination === input.destination &&
+    row.memo === input.memo
+  if (!same) fail(409, 'already_registered', CAR_MESSAGES.alreadyRegistered)
+  return loadReservation(db, row.id)
 }
 
 // 選んだ車（移す先の車）の条件に当たらなかった：車を取り直して、無ければ 400、「使わない」なら 409
