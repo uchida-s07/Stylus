@@ -1,0 +1,1004 @@
+{
+  "id": "dd9eb839-707a-40fa-b711-14401d5d2f91",
+  "prevId": "0e0ba00e-73cc-4a1f-b08b-60e338506963",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.bill_categories": {
+      "name": "bill_categories",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "bill_categories_name_unique": {
+          "name": "bill_categories_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "bill_categories_name_valid": {
+          "name": "bill_categories_name_valid",
+          "value": "\"bill_categories\".\"name\" = btrim(\"bill_categories\".\"name\", E' \\t\\r\\n\\u3000') and char_length(\"bill_categories\".\"name\") between 1 and 20"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.bill_events": {
+      "name": "bill_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "seq": {
+          "name": "seq",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "bill_events_seq_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "bill_id": {
+          "name": "bill_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_member_id": {
+          "name": "actor_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "settlement_id": {
+          "name": "settlement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "bill_events_bill_idx": {
+          "name": "bill_events_bill_idx",
+          "columns": [
+            {
+              "expression": "bill_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "seq",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "bill_events_bill_id_bills_id_fk": {
+          "name": "bill_events_bill_id_bills_id_fk",
+          "tableFrom": "bill_events",
+          "tableTo": "bills",
+          "columnsFrom": [
+            "bill_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "bill_events_actor_member_id_members_id_fk": {
+          "name": "bill_events_actor_member_id_members_id_fk",
+          "tableFrom": "bill_events",
+          "tableTo": "members",
+          "columnsFrom": [
+            "actor_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "bill_events_settlement_id_settlements_id_fk": {
+          "name": "bill_events_settlement_id_settlements_id_fk",
+          "tableFrom": "bill_events",
+          "tableTo": "settlements",
+          "columnsFrom": [
+            "settlement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "bill_events_kind_valid": {
+          "name": "bill_events_kind_valid",
+          "value": "\"bill_events\".\"kind\" in ('created', 'edited', 'resubmitted', 'canceled', 'paid', 'returned', 'confirmed', 'payment_canceled', 'not_received', 'settled_paid', 'settled_confirmed', 'settlement_payment_canceled', 'settlement_not_received')"
+        },
+        "bill_events_reason_valid": {
+          "name": "bill_events_reason_valid",
+          "value": "case when \"bill_events\".\"kind\" = 'returned' then \"bill_events\".\"reason\" is not null and (\"bill_events\".\"reason\" = btrim(\"bill_events\".\"reason\", E' \\t\\r\\n\\u3000') and char_length(\"bill_events\".\"reason\") between 1 and 200) else \"bill_events\".\"reason\" is null end"
+        },
+        "bill_events_settlement_valid": {
+          "name": "bill_events_settlement_valid",
+          "value": "(\"bill_events\".\"kind\" like 'settle%') = (\"bill_events\".\"settlement_id\" is not null)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.bills": {
+      "name": "bills",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "from_member_id": {
+          "name": "from_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "to_member_id": {
+          "name": "to_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "memo": {
+          "name": "memo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "occurred_on": {
+          "name": "occurred_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'requested'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "settlement_id": {
+          "name": "settlement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "bills_from_idx": {
+          "name": "bills_from_idx",
+          "columns": [
+            {
+              "expression": "from_member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "bills_to_idx": {
+          "name": "bills_to_idx",
+          "columns": [
+            {
+              "expression": "to_member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "bills_settlement_idx": {
+          "name": "bills_settlement_idx",
+          "columns": [
+            {
+              "expression": "settlement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "bills_from_member_id_members_id_fk": {
+          "name": "bills_from_member_id_members_id_fk",
+          "tableFrom": "bills",
+          "tableTo": "members",
+          "columnsFrom": [
+            "from_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "bills_to_member_id_members_id_fk": {
+          "name": "bills_to_member_id_members_id_fk",
+          "tableFrom": "bills",
+          "tableTo": "members",
+          "columnsFrom": [
+            "to_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "bills_category_id_bill_categories_id_fk": {
+          "name": "bills_category_id_bill_categories_id_fk",
+          "tableFrom": "bills",
+          "tableTo": "bill_categories",
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "bills_settlement_id_settlements_id_fk": {
+          "name": "bills_settlement_id_settlements_id_fk",
+          "tableFrom": "bills",
+          "tableTo": "settlements",
+          "columnsFrom": [
+            "settlement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "bills_created_by_members_id_fk": {
+          "name": "bills_created_by_members_id_fk",
+          "tableFrom": "bills",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "bills_created_by_request_id_unique": {
+          "name": "bills_created_by_request_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "created_by",
+            "request_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "bills_parties_valid": {
+          "name": "bills_parties_valid",
+          "value": "\"bills\".\"from_member_id\" is distinct from \"bills\".\"to_member_id\""
+        },
+        "bills_amount_valid": {
+          "name": "bills_amount_valid",
+          "value": "\"bills\".\"amount\" between 1 and 9999999"
+        },
+        "bills_title_valid": {
+          "name": "bills_title_valid",
+          "value": "\"bills\".\"title\" = btrim(\"bills\".\"title\", E' \\t\\r\\n\\u3000') and char_length(\"bills\".\"title\") between 1 and 50"
+        },
+        "bills_memo_valid": {
+          "name": "bills_memo_valid",
+          "value": "\"bills\".\"memo\" is null or (\"bills\".\"memo\" = btrim(\"bills\".\"memo\", E' \\t\\r\\n\\u3000') and char_length(\"bills\".\"memo\") between 1 and 500)"
+        },
+        "bills_occurred_on_valid": {
+          "name": "bills_occurred_on_valid",
+          "value": "\"bills\".\"occurred_on\" >= '2020-01-01'"
+        },
+        "bills_status_valid": {
+          "name": "bills_status_valid",
+          "value": "\"bills\".\"status\" in ('requested', 'returned', 'paid', 'confirmed', 'canceled')"
+        },
+        "bills_settlement_status": {
+          "name": "bills_settlement_status",
+          "value": "\"bills\".\"settlement_id\" is null or \"bills\".\"status\" in ('paid', 'confirmed')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.car_reservations": {
+      "name": "car_reservations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "car_id": {
+          "name": "car_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "starts_at": {
+          "name": "starts_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ends_at": {
+          "name": "ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "destination": {
+          "name": "destination",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "memo": {
+          "name": "memo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "car_reservations_ends_at_idx": {
+          "name": "car_reservations_ends_at_idx",
+          "columns": [
+            {
+              "expression": "ends_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "car_reservations_car_id_cars_id_fk": {
+          "name": "car_reservations_car_id_cars_id_fk",
+          "tableFrom": "car_reservations",
+          "tableTo": "cars",
+          "columnsFrom": [
+            "car_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "car_reservations_member_id_members_id_fk": {
+          "name": "car_reservations_member_id_members_id_fk",
+          "tableFrom": "car_reservations",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "car_reservations_member_id_request_id_unique": {
+          "name": "car_reservations_member_id_request_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "member_id",
+            "request_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "car_reservations_starts_at_minute": {
+          "name": "car_reservations_starts_at_minute",
+          "value": "date_trunc('minute', \"car_reservations\".\"starts_at\") = \"car_reservations\".\"starts_at\""
+        },
+        "car_reservations_ends_at_minute": {
+          "name": "car_reservations_ends_at_minute",
+          "value": "date_trunc('minute', \"car_reservations\".\"ends_at\") = \"car_reservations\".\"ends_at\""
+        },
+        "car_reservations_period_valid": {
+          "name": "car_reservations_period_valid",
+          "value": "\"car_reservations\".\"ends_at\" > \"car_reservations\".\"starts_at\""
+        },
+        "car_reservations_destination_valid": {
+          "name": "car_reservations_destination_valid",
+          "value": "\"car_reservations\".\"destination\" is null or (\"car_reservations\".\"destination\" = btrim(\"car_reservations\".\"destination\", E' \\t\\r\\n\\u3000') and char_length(\"car_reservations\".\"destination\") between 1 and 50)"
+        },
+        "car_reservations_memo_valid": {
+          "name": "car_reservations_memo_valid",
+          "value": "\"car_reservations\".\"memo\" is null or (\"car_reservations\".\"memo\" = btrim(\"car_reservations\".\"memo\", E' \\t\\r\\n\\u3000') and char_length(\"car_reservations\".\"memo\") between 1 and 500)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.cars": {
+      "name": "cars",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "cars_name_unique": {
+          "name": "cars_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "cars_name_valid": {
+          "name": "cars_name_valid",
+          "value": "\"cars\".\"name\" = btrim(\"cars\".\"name\", E' \\t\\r\\n\\u3000') and char_length(\"cars\".\"name\") between 1 and 20"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.members": {
+      "name": "members",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "auth_user_id": {
+          "name": "auth_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_admin": {
+          "name": "is_admin",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "is_parent": {
+          "name": "is_parent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "is_cook": {
+          "name": "is_cook",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "members_auth_user_id_unique": {
+          "name": "members_auth_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "auth_user_id"
+          ]
+        },
+        "members_email_unique": {
+          "name": "members_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "members_email_not_empty": {
+          "name": "members_email_not_empty",
+          "value": "\"members\".\"email\" <> ''"
+        },
+        "members_email_lowercase": {
+          "name": "members_email_lowercase",
+          "value": "\"members\".\"email\" = lower(\"members\".\"email\")"
+        },
+        "members_display_name_not_blank": {
+          "name": "members_display_name_not_blank",
+          "value": "btrim(\"members\".\"display_name\", E' \\t\\r\\n\\u3000') <> ''"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.settlements": {
+      "name": "settlements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "payer_member_id": {
+          "name": "payer_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "receiver_member_id": {
+          "name": "receiver_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'paid'"
+        },
+        "paid_by": {
+          "name": "paid_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paid_at": {
+          "name": "paid_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confirmed_by": {
+          "name": "confirmed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reverted_by": {
+          "name": "reverted_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reverted_at": {
+          "name": "reverted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "settlements_payer_idx": {
+          "name": "settlements_payer_idx",
+          "columns": [
+            {
+              "expression": "payer_member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "settlements_receiver_idx": {
+          "name": "settlements_receiver_idx",
+          "columns": [
+            {
+              "expression": "receiver_member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "settlements_payer_member_id_members_id_fk": {
+          "name": "settlements_payer_member_id_members_id_fk",
+          "tableFrom": "settlements",
+          "tableTo": "members",
+          "columnsFrom": [
+            "payer_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "settlements_receiver_member_id_members_id_fk": {
+          "name": "settlements_receiver_member_id_members_id_fk",
+          "tableFrom": "settlements",
+          "tableTo": "members",
+          "columnsFrom": [
+            "receiver_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "settlements_paid_by_members_id_fk": {
+          "name": "settlements_paid_by_members_id_fk",
+          "tableFrom": "settlements",
+          "tableTo": "members",
+          "columnsFrom": [
+            "paid_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "settlements_confirmed_by_members_id_fk": {
+          "name": "settlements_confirmed_by_members_id_fk",
+          "tableFrom": "settlements",
+          "tableTo": "members",
+          "columnsFrom": [
+            "confirmed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "settlements_reverted_by_members_id_fk": {
+          "name": "settlements_reverted_by_members_id_fk",
+          "tableFrom": "settlements",
+          "tableTo": "members",
+          "columnsFrom": [
+            "reverted_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "settlements_parties_valid": {
+          "name": "settlements_parties_valid",
+          "value": "\"settlements\".\"payer_member_id\" is distinct from \"settlements\".\"receiver_member_id\""
+        },
+        "settlements_amount_valid": {
+          "name": "settlements_amount_valid",
+          "value": "\"settlements\".\"amount\" >= 0"
+        },
+        "settlements_status_valid": {
+          "name": "settlements_status_valid",
+          "value": "\"settlements\".\"status\" in ('paid', 'confirmed', 'reverted')"
+        },
+        "settlements_confirmed_consistent": {
+          "name": "settlements_confirmed_consistent",
+          "value": "(\"settlements\".\"status\" = 'confirmed') = (\"settlements\".\"confirmed_by\" is not null and \"settlements\".\"confirmed_at\" is not null)"
+        },
+        "settlements_reverted_consistent": {
+          "name": "settlements_reverted_consistent",
+          "value": "(\"settlements\".\"status\" = 'reverted') = (\"settlements\".\"reverted_by\" is not null and \"settlements\".\"reverted_at\" is not null)"
+        }
+      },
+      "isRLSEnabled": true
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

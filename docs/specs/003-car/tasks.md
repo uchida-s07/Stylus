@@ -48,7 +48,7 @@ spec-review で「/spec-plan と実装の中で拾う」とした6件。どれ�
 
 ## 1. DB
 
-- [ ] T-1: 車の表を足すマイグレーション（V-1：PGlite で `btree_gist` と排他制約が動くか）
+- [x] T-1: 車の表を足すマイグレーション（V-1：PGlite で `btree_gist` と排他制約が動くか）
   - 対応: spec「3. 変更差分」DB、design.md「データモデル」「重なりの防ぎ方」「そのほかの持ち方」「実物で確かめる項目」V-1、COMMON-N-003（既存の `rls.test.ts` が新しい表も見る）、CAR-F-001 の初期データ「BMW」
   - 対象ファイル: `apps/api/src/db/schema.ts`（`cars`・`car_reservations`。排他制約の名前と中身をコメントで残す）、`apps/api/drizzle/0004_*.sql`（drizzle-kit で作り、手で足す：先頭に `create schema if not exists extensions` と `create extension if not exists btree_gist with schema extensions`、末尾に排他制約と「BMW」の投入）、`apps/api/test/db.ts`（`createTestDb()` で PGlite の `btree_gist` を読み込む）、`apps/api/src/db/car.test.ts`（制約の確認。AC なし）
   - 内容:
@@ -57,6 +57,7 @@ spec-review で「/spec-plan と実装の中で拾う」とした6件。どれ�
     - 排他制約：`EXCLUDE USING gist (car_id WITH =, tstzrange(starts_at, ends_at, '[)') WITH &&)`
   - Red: 対象外（DB 変更）
   - 完了条件: マイグレーションが PGlite に当たり、`rls.test.ts` を含むテスト全体が通る。制約のテスト（重なる2行が `23P01`、12:00 に終わる行と 12:00 に始まる行は入る、別の車なら入る、秒のある日時・終了が開始以前・21文字の名前・前後の空白を除いて同じ名前が拒否される、予約のある車と家族の削除が拒否される、「BMW」が1行ある）が通る。V-1 がだめなら止める（上の補足）
+  - 結果: 2026-10-09。V-1 は合格：`createTestDb()` で `@electric-sql/pglite/contrib/btree_gist` を読み込み、0004 の先頭で `extensions` スキーマを作ってから拡張を入れると、排他制約つきのマイグレーションが流れ、重なる2行目が `23P01` で拒否された（`src/db/car.test.ts`）。マイグレーションが1本増えて PGlite の準備が1回あたり約 0.4 秒延び（約 3.6 秒）、テスト本体の中で DB を作る `scheduled.test.ts` が並列のときに既定の 5 秒を超えたので、`apps/api/vitest.config.ts` でテストとフックの時間の上限を 30 秒に広げた（テストの中身は変えていない）
 
 - [ ] T-2: stylus-dev で `btree_gist` と排他制約を確かめる（V-2、管理者の手作業を含む）
   - 対応: design.md「実物で確かめる項目」V-2
