@@ -653,4 +653,68 @@ describe('予約の API（CAR-F-004〜008）', () => {
       })
     })
   })
+
+  describe('予約を直すの入力の検証と形（CAR-F-006）', () => {
+    it('[CAR-F-006/AC-14] 10月7日 20:00 に、開始 10月7日 18:00・終了 19:00 に直すと保存されず「終了の日時が過ぎています」、10月10日 9:00〜12:00 のまま', async () => {
+      const r = await kugoReservation()
+      const res = await edit(
+        'kugo',
+        r.id,
+        await editBody(r, { from: '2026-10-07 18:00', to: '2026-10-07 19:00' }),
+      )
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
+      const error = await expectError(res, 400, 'invalid_input')
+      expect(error.fields?.endsAt).toBe('終了の日時が過ぎています')
+    })
+
+    it('[CAR-F-006/AC-17] 終了日時を空にして保存すると、保存されず終了日時に「入力してください」', async () => {
+      const r = await kugoReservation()
+      const { endsAt: _omitted, ...body } = await editBody(r)
+      void _omitted
+      const res = await edit('kugo', r.id, body)
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
+      const error = await expectError(res, 400, 'invalid_input')
+      expect(error.fields?.endsAt).toBe('入力してください')
+    })
+
+    it('[CAR-F-006/AC-18] 終了を 10月10日 9:00 に直すと、保存されず「終了は開始より後にしてください」', async () => {
+      const r = await kugoReservation()
+      const res = await edit('kugo', r.id, await editBody(r, { to: '2026-10-10 09:00' }))
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
+      const error = await expectError(res, 400, 'invalid_input')
+      expect(error.fields?.endsAt).toBe('終了は開始より後にしてください')
+    })
+
+    it('[CAR-F-006/AC-19] 行き先を51文字にして直すと、保存されず直す前のまま', async () => {
+      const r = await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+        destination: '大学',
+      })
+      const res = await edit('kugo', r.id, await editBody(r, { destination: 'あ'.repeat(51) }))
+      expect(await t.findReservation(r.id)).toMatchObject({ destination: '大学', version: 1 })
+      await expectError(res, 400, 'invalid_input')
+    })
+
+    it('[CAR-F-006/AC-22] 開始日時だけ（車を送らずに）10:00 にして直す API を呼ぶと、400 で 9:00〜12:00 のまま', async () => {
+      const r = await kugoReservation()
+      const { carId: _omitted, ...body } = await editBody(r, { from: '2026-10-10 10:00' })
+      void _omitted
+      const res = await edit('kugo', r.id, body)
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
+      await expectError(res, 400, 'invalid_input')
+    })
+
+    // AC ではない確認
+    it('行き先を送らない要求は 400 で、何も変わらない（tasks.md D-4）', async () => {
+      const r = await kugoReservation()
+      const { destination: _omitted, ...body } = await editBody(r, { to: '2026-10-10 13:00' })
+      void _omitted
+      const res = await edit('kugo', r.id, body)
+      expect(await periodOf(r.id)).toBe(period('2026-10-10 09:00', '2026-10-10 12:00'))
+      await expectError(res, 400, 'invalid_input')
+    })
+  })
 })
