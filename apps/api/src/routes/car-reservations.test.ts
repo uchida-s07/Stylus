@@ -888,4 +888,68 @@ describe('予約の API（CAR-F-004〜008）', () => {
       expect(res.status).toBe(200)
     })
   })
+
+  describe('予約を取り消す（CAR-F-007）', () => {
+    const cancel = (who: FamilyKey, id: string) => t.call(who, 'DELETE', `/car-reservations/${id}`)
+
+    it('[CAR-F-007/AC-1] くうごが 10月10日 9:00〜12:00 を取り消すと、予定にも履歴にも出ない', async () => {
+      const r = await kugoReservation()
+      const res = await cancel('kugo', r.id)
+      expect(await t.findReservation(r.id)).toBeUndefined()
+      expect(await upcoming()).toEqual([])
+      const past = await t.call('father', 'GET', '/car-reservations?view=past')
+      expect(reservationListResponseSchema.parse(await past.json()).reservations).toEqual([])
+      expect(res.status).toBe(204)
+    })
+
+    it('[CAR-F-007/AC-3] 母のトークンでくうごの予約を取り消す API を呼ぶと、403 で予約は残る', async () => {
+      const r = await kugoReservation()
+      const res = await cancel('mother', r.id)
+      expect(await t.findReservation(r.id)).toBeDefined()
+      await expectError(res, 403, 'forbidden')
+    })
+
+    it('[CAR-F-007/AC-4] 10月10日 10:00、使用中の予約を取り消す API を呼ぶと、409 で予約は残る', async () => {
+      const r = await kugoReservation()
+      t.setNow('2026-10-10 10:00')
+      const res = await cancel('kugo', r.id)
+      expect(await t.findReservation(r.id)).toBeDefined()
+      await expectError(res, 409, 'state_changed')
+    })
+
+    it('[CAR-F-007/AC-5] 端末 B で取り消していたら、端末 A の取り消しは「この予約は見つかりません。」', async () => {
+      const r = await kugoReservation()
+      expect((await cancel('kugo', r.id)).status).toBe(204)
+      const error = await expectError(await cancel('kugo', r.id), 404, 'not_found')
+      expect(error.message).toBe('この予約は見つかりません。')
+    })
+
+    it('[CAR-F-007/AC-6] 8:55 に確認を開き、9:00 を過ぎてから取り消すと、取り消されず「この予約はもう始まっているため取り消せません。…」', async () => {
+      const r = await kugoReservation()
+      t.setNow('2026-10-10 09:01')
+      const res = await cancel('kugo', r.id)
+      expect(await t.findReservation(r.id)).toBeDefined()
+      const error = await expectError(res, 409, 'state_changed')
+      expect(error.message).toBe(
+        'この予約はもう始まっているため取り消せません。終了の日時を直してください。',
+      )
+    })
+
+    it('[CAR-F-007/AC-7] 10月7日 20:00、終わった 10月7日 8:00〜10:00 を取り消す API を呼ぶと、409 で予約は残る', async () => {
+      const r = await kugoReservation('2026-10-07 08:00', '2026-10-07 10:00')
+      const res = await cancel('kugo', r.id)
+      expect(await t.findReservation(r.id)).toBeDefined()
+      await expectError(res, 409, 'state_changed')
+    })
+
+    it('[CAR-F-007/AC-8] 確認を開いている間に端末 B で終了を 13:00 に直していても、取り消されて予定に出ない', async () => {
+      const r = await kugoReservation()
+      expect((await edit('kugo', r.id, await editBody(r, { to: '2026-10-10 13:00' }))).status).toBe(
+        200,
+      )
+      const res = await cancel('kugo', r.id)
+      expect(await upcoming()).toEqual([])
+      expect(res.status).toBe(204)
+    })
+  })
 })

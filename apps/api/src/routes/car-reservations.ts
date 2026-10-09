@@ -7,6 +7,7 @@ import {
 } from '@stylus/shared'
 import { Hono } from 'hono'
 import type { AppConfig } from '../app'
+import { cancelReservation } from '../car/cancel'
 import { listPast, listUpcoming, loadReservationDetail } from '../car/list'
 import { createReservation } from '../car/reservations'
 import { updateReservation } from '../car/update'
@@ -52,5 +53,11 @@ export function carReservationsRoute(config: Pick<AppConfig, 'now'>) {
           )
         },
       )
+      // 予約を取り消す（CAR-F-007）。版は送らない
+      .delete('/:id', idParam(CAR_MESSAGES.reservationNotFound), async (c) => {
+        const { id } = c.req.valid('param')
+        await cancelReservation(c.var.db, c.var.member, id, config.now())
+        return c.body(null, 204)
+      })
   )
 }
