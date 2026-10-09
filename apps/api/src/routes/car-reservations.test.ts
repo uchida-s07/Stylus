@@ -1,6 +1,6 @@
 import { reservationListResponseSchema, reservationSchema } from '@stylus/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createCarTestApp, jstIso, type CarTestApp } from '../../test/car'
+import { createCarTestApp, expectError, jstIso, type CarTestApp } from '../../test/car'
 import type { FamilyKey } from '../../test/family'
 
 // 今は既定で日本時間 2026-10-07 20:00（tasks.md D-3）
@@ -26,14 +26,14 @@ describe('予約の API（CAR-F-004〜008）', () => {
     requestId?: string
   }
 
-  function reserveBody({ car = 'ノア', carId, from, to, requestId, ...rest }: ReserveInput) {
-    return (async () => ({
+  async function reserveBody({ car = 'ノア', carId, from, to, requestId, ...rest }: ReserveInput) {
+    return {
       carId: carId ?? (await t.carId(car)),
       startsAt: jstIso(from),
       endsAt: jstIso(to),
       requestId: requestId ?? crypto.randomUUID(),
       ...rest,
-    }))()
+    }
   }
 
   async function reserve(who: FamilyKey, input: ReserveInput) {
@@ -132,6 +132,77 @@ describe('予約の API（CAR-F-004〜008）', () => {
         'ノア くうご 12-01 09:00〜12-01 12:00',
       ])
       expect([long.status, far.status]).toEqual([201, 201])
+    })
+  })
+
+  describe('予約の登録の入力の検証（CAR-F-004）', () => {
+    it('[CAR-F-004/AC-7] 終了日時を空にして予約すると、予約は作られず終了日時に「入力してください」', async () => {
+      const { endsAt: _omitted, ...body } = await reserveBody({
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+      })
+      void _omitted
+      const res = await t.call('kugo', 'POST', '/car-reservations', body)
+      expect(await t.reservationRows()).toHaveLength(0)
+      const error = await expectError(res, 400, 'invalid_input')
+      expect(error.fields?.endsAt).toBe('入力してください')
+    })
+
+    it('[CAR-F-004/AC-8] 10月10日 12:00〜12:00 と 12:00〜11:00 はどちらも作られず「終了は開始より後にしてください」', async () => {
+      const same = await reserve('kugo', { from: '2026-10-10 12:00', to: '2026-10-10 12:00' })
+      const before = await reserve('kugo', { from: '2026-10-10 12:00', to: '2026-10-10 11:00' })
+      expect(await t.reservationRows()).toHaveLength(0)
+      for (const res of [same, before]) {
+        const error = await expectError(res, 400, 'invalid_input')
+        expect(error.fields?.endsAt).toBe('終了は開始より後にしてください')
+      }
+    })
+
+    it('[CAR-F-004/AC-10] 日本時間 2026-10-07 20:00 に 10月7日 18:00〜20:00 で予約すると、作られず「終了の日時が過ぎています」', async () => {
+      const res = await reserve('kugo', { from: '2026-10-07 18:00', to: '2026-10-07 20:00' })
+      expect(await t.reservationRows()).toHaveLength(0)
+      const error = await expectError(res, 400, 'invalid_input')
+      expect(error.fields?.endsAt).toBe('終了の日時が過ぎています')
+    })
+
+    it('[CAR-F-004/AC-18] 行き先を51文字にして予約すると、予約は作られない', async () => {
+      const res = await reserve('kugo', {
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+        destination: 'あ'.repeat(51),
+      })
+      expect(await t.reservationRows()).toHaveLength(0)
+      const error = await expectError(res, 400, 'invalid_input')
+      expect(error.fields?.destination).toBe('50文字以内で入力してください')
+    })
+
+    it('[CAR-F-004/AC-19] メモを501文字にすると作られず、500文字なら予約できる', async () => {
+      const over = await reserve('kugo', {
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+        memo: 'あ'.repeat(501),
+      })
+      expect(await t.reservationRows()).toHaveLength(0)
+      await expectError(over, 400, 'invalid_input')
+      const ok = await reserve('kugo', {
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+        memo: 'あ'.repeat(500),
+      })
+      expect(await t.reservationRows()).toHaveLength(1)
+      expect(ok.status).toBe(201)
+    })
+
+    // AC ではない確認
+    it('行き先・メモは前後の空白を除いて保存し、空白だけなら無しにする', async () => {
+      await reserve('kugo', {
+        from: '2026-10-10 09:00',
+        to: '2026-10-10 12:00',
+        destination: '　大学 ',
+        memo: ' 　',
+      })
+      const [row] = await t.reservationRows()
+      expect(row).toMatchObject({ destination: '大学', memo: null })
     })
   })
 })
