@@ -3,6 +3,7 @@ import { RedirectIfSignedIn, RequireSignedIn } from './auth/guards'
 import { RouteError } from './components/RouteError'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { CarPage } from './pages/car/CarPage'
+import { ReservationDetailPage } from './pages/car/ReservationDetailPage'
 import { ReservationNewPage } from './pages/car/ReservationNewPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
@@ -35,6 +36,7 @@ export const routes: RouteObject[] = [
           { path: '/money/categories', element: <CategoriesPage /> },
           { path: '/car', element: <CarPage /> },
           { path: '/car/reservations/new', element: <ReservationNewPage /> },
+          { path: '/car/reservations/:id', element: <ReservationDetailPage /> },
         ],
       },
       { element: <RedirectIfSignedIn />, children: [{ path: '/login', element: <LoginPage /> }] },
