@@ -18,13 +18,18 @@ import { api } from '../../api/client'
 import { callApi, WRITE_MESSAGES, type ApiResult } from '../../api/responses'
 import { useLeaveAsUnregistered } from '../../auth/unregistered'
 import { ErrorScreen } from '../../components/ErrorScreen'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Loading } from '../../components/Loading'
 import { useApiLoad } from '../../components/useApiLoad'
 
-// 車の管理（CAR-F-001〜003・009）：一覧（「使わない」の印）、登録、名前を変える
+type Confirming = { kind: 'deactivate' | 'delete'; car: CarListItem }
+
+// 車の管理（CAR-F-001〜003・009）：一覧（「使わない」の印）、登録、名前を変える、
+// 使わないにする（確認あり）・使うに戻す（確認なし）、削除（予約の無い車だけ。確認あり）
 export function CarsPage() {
   const { state, reload } = useApiLoad(() => callApi(() => api.cars.$get()))
   const [notice, setNotice] = useState<string>()
+  const [confirming, setConfirming] = useState<Confirming>()
   const leaveAsUnregistered = useLeaveAsUnregistered()
 
   if (state.kind === 'loading') return <Loading />
@@ -52,6 +57,12 @@ export function CarsPage() {
     if (error?.code === 'invalid_input' && error.fields?.name) {
       return { ok: false, nameError: error.fields.name }
     }
+    if (error?.code === 'in_use') {
+      // 確認を開いた後に予約が入った
+      setNotice(CAR_MESSAGES.carInUse)
+      reload()
+      return { ok: false }
+    }
     if (error?.code === 'not_found') {
       // 開いた後に削除されていた。一覧を取り直す
       setNotice(CAR_MESSAGES.carNotFound)
@@ -60,6 +71,25 @@ export function CarsPage() {
     }
     setNotice(WRITE_MESSAGES.failed)
     return { ok: false }
+  }
+
+  // 使う／使わないを切り替える。同じ値にする操作は API がそのまま成功にするので、
+  // ほかの家族が先に済ませていても知らせは出ない（CAR-F-002/AC-6）
+  async function changeActive(car: CarListItem, isActive: boolean) {
+    await handleWrite(
+      await callApi(() => api.cars[':id'].$patch({ param: { id: car.id }, json: { isActive } })),
+    )
+  }
+
+  async function remove(car: CarListItem) {
+    await handleWrite(await callApi(() => api.cars[':id'].$delete({ param: { id: car.id } })))
+  }
+
+  async function confirm() {
+    if (!confirming) return
+    if (confirming.kind === 'deactivate') await changeActive(confirming.car, false)
+    else await remove(confirming.car)
+    setConfirming(undefined)
   }
 
   return (
@@ -96,10 +126,31 @@ export function CarsPage() {
                   ),
                 )
               }
+              deactivate={() => setConfirming({ kind: 'deactivate', car })}
+              activate={() => changeActive(car, true)}
+              remove={() => setConfirming({ kind: 'delete', car })}
             />
           ))}
         </Stack>
       </Stack>
+      {confirming && (
+        <ConfirmDialog
+          opened
+          title={
+            confirming.kind === 'deactivate'
+              ? `「${confirming.car.name}」を使わないにしますか？`
+              : `「${confirming.car.name}」を削除しますか？`
+          }
+          confirmLabel={confirming.kind === 'deactivate' ? '使わないにする' : '削除する'}
+          color="red"
+          onClose={() => setConfirming(undefined)}
+          onConfirm={confirm}
+        >
+          {confirming.kind === 'deactivate' && confirming.car.upcomingCount > 0
+            ? `この車にはこれからの予約が${confirming.car.upcomingCount}件あります。予約はそのまま残ります。`
+            : undefined}
+        </ConfirmDialog>
+      )}
     </Container>
   )
 }
@@ -157,11 +208,21 @@ function RegisterForm({ register }: { register: (name: string) => Promise<WriteO
 function CarCard({
   car,
   rename,
+  deactivate,
+  activate,
+  remove,
 }: {
   car: CarListItem
   rename: (name: string) => Promise<WriteOutcome>
+  // 「使わないにする」（確認を開く）
+  deactivate: () => void
+  // 「使うに戻す」（確認は出さない）
+  activate: () => Promise<void>
+  // 「削除」（確認を開く）
+  remove: () => void
 }) {
   const [editing, setEditing] = useState(false)
+  const [activating, setActivating] = useState(false)
 
   return (
     <Card component="li" withBorder padding="sm">
@@ -186,6 +247,41 @@ function CarCard({
             >
               名前を変える
             </Button>
+            {car.isActive ? (
+              <Button
+                variant="default"
+                size="xs"
+                aria-label={`${car.name}を使わないにする`}
+                onClick={deactivate}
+              >
+                使わないにする
+              </Button>
+            ) : (
+              <Button
+                variant="default"
+                size="xs"
+                aria-label={`${car.name}を使うに戻す`}
+                loading={activating}
+                onClick={() => {
+                  setActivating(true)
+                  void activate().finally(() => setActivating(false))
+                }}
+              >
+                使うに戻す
+              </Button>
+            )}
+            {/* 予約が1件でもある車には出さない（CAR-F-003） */}
+            {!car.hasReservations && (
+              <Button
+                variant="subtle"
+                color="red"
+                size="xs"
+                aria-label={`${car.name}を削除`}
+                onClick={remove}
+              >
+                削除
+              </Button>
+            )}
           </Group>
         )}
       </Stack>
