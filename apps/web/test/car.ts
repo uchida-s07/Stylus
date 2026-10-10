@@ -6,6 +6,8 @@ import type {
   ReservationDetail,
   ReservationListResponse,
 } from '@stylus/shared'
+import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { installFakeApi, json, meRoute } from './fakeApi'
 import { FAMILY, meOf, type FamilyKey } from './money'
@@ -94,4 +96,14 @@ export function installCarApi(
 export function setDeviceClock(dateTime: string) {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date(jstIso(dateTime)))
+}
+
+// 日付と時刻の欄に入れる（日付は YYYY-MM-DD、時刻は HH:MM）
+export async function fillDateTime(which: '開始' | '終了', date: string, time: string) {
+  const dateInput = screen.getByLabelText(`${which}の日付`)
+  const timeInput = screen.getByLabelText(`${which}の時刻`)
+  await userEvent.clear(dateInput)
+  if (date) await userEvent.type(dateInput, date)
+  await userEvent.clear(timeInput)
+  if (time) await userEvent.type(timeInput, time)
 }

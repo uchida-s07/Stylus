@@ -7,6 +7,7 @@ import {
   carError,
   carItem,
   carList,
+  fillDateTime,
   installCarApi,
   jstIso,
   reservation,
@@ -21,7 +22,7 @@ import { renderApp } from '../../../test/render'
 type Handler = Parameters<typeof installCarApi>[0][string]
 
 // 予約の入力を開く（車の一覧と POST の応答を差し替えられる）
-export function openNewReservation(
+function openNewReservation(
   options: {
     cars?: ReturnType<typeof carList>
     post?: Handler
@@ -47,26 +48,15 @@ export function openNewReservation(
   return { ...fake, ...renderApp('/car/reservations/new') }
 }
 
-// 日付と時刻の欄に入れる（日付は YYYY-MM-DD、時刻は HH:MM）
-export async function fillDateTime(which: '開始' | '終了', date: string, time: string) {
-  const dateInput = screen.getByLabelText(`${which}の日付`)
-  const timeInput = screen.getByLabelText(`${which}の時刻`)
-  await userEvent.clear(dateInput)
-  if (date) await userEvent.type(dateInput, date)
-  await userEvent.clear(timeInput)
-  if (time) await userEvent.type(timeInput, time)
-}
-
 // 車「ノア」・10月10日 9:00〜12:00 を入れる
-export async function fillNoahPeriod() {
+async function fillNoahPeriod() {
   await userEvent.selectOptions(await screen.findByLabelText('車'), 'ノア')
   await fillDateTime('開始', '2026-10-10', '09:00')
   await fillDateTime('終了', '2026-10-10', '12:00')
 }
 
-export const submitReservation = () =>
-  userEvent.click(screen.getByRole('button', { name: '予約する' }))
-export const postsOf = (requests: Request[]) => requests.filter((r) => r.method === 'POST')
+const submitReservation = () => userEvent.click(screen.getByRole('button', { name: '予約する' }))
+const postsOf = (requests: Request[]) => requests.filter((r) => r.method === 'POST')
 
 async function carOptions() {
   const select = await screen.findByLabelText('車')
