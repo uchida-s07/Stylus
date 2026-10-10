@@ -11,7 +11,7 @@
 
 - ブランチ `spec/003-car`（push 済み、最新は `f648552`）。spec 003 は `approved`
 - tasks.md の T-1〜T-29 は完了（実装・テスト・Red の記録まで）。T-2（stylus-dev で排他制約が働くか）も 2026-10-10 に合格
-- T-30（開発環境での手動の確認）も 2026-10-10 に完了。`/spec-close 003` は途中：spec-verify の指摘（Red の記録）を2回直した（T-25・T-29・T-23 の Red を取り直し、R-2 は review-notes に承知で進める）。次は spec-verify を通し直して合格を確かめ、spec-close の手順3（常設要件へ移す）から続ける。spec-verify 1回目の注意 R-3（`isMine` と `forbidden` を architecture.md に書き添える）も手順4で行う
+- T-30（開発環境での手動の確認）も 2026-10-10 に完了。2026-10-11 に `/spec-close 003` を終え、spec 003 は `done`（常設要件は `docs/product/requirements/car.md`）。次は `/spec-new 004`（カレンダー。下の「4a. 決まったこと」を spec に移す）
 - テスト全体 601件・lint・型・spec-check（`spec 003 --with-tests`）はすべて合格
 - 今の車の画面：`/car` は、これからの予約を開始の日付ごとの一覧（`10月7日(水)` の見出しの下に行）で出す。予約の入力（`/car/reservations/new`）は、車の選択と、開始・終了それぞれの日付（`type="date"`）と時刻（`type="time"`）の欄。画面の部品は `apps/web/src/pages/car/`（`CarPage.tsx`・`ReservationRow.tsx`・`ReservationForm.tsx`・`ReservationNewPage.tsx`・`ReservationEditPage.tsx`・`format.ts`・`reservationFormValues.ts`）
 

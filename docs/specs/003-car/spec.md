@@ -3,10 +3,10 @@
 # 003 車（車の登録と予約）
 
 tier: L
-status: approved
+status: done
 created: 2026-10-07
 approved: 2026-10-07 11:55
-done:
+done: 2026-10-11
 review: 2026-10-07 合格（6回目。5回目の注意 R-2〜R-5 と6回目の注意 R-1・R-2 は承知で進める。docs/review-notes.md）
 
 <!-- status: draft | approved | done -->
