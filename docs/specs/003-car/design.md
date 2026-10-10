@@ -159,6 +159,11 @@ erDiagram
 | V-1 | PGlite（テスト）で `btree_gist` を読み込み、排他制約つきのマイグレーションが流れ、`23P01` が返るか。手当てとして、`createTestDb()` で PGlite の拡張（`@electric-sql/pglite/contrib/btree_gist`）を読み込み、マイグレーションでは拡張の前に `create schema if not exists extensions` を流す（PGlite には `extensions` スキーマが無い。Supabase ではすでにあるので害が無い） | 代替案の advisory lock に切り替える |
 | V-2 | `stylus-dev` で、マイグレーションの接続から `btree_gist` を有効にでき、排他制約が働くか | Supabase の管理画面（Database → Extensions）で先に有効にしておき、マイグレーションは `if not exists` で通す |
 
+確かめた結果：
+
+- V-1（2026-10-09）：合格。PGlite で `btree_gist` を読み込み、0004 の先頭で `extensions` スキーマを作ってから拡張を入れると、排他制約つきのマイグレーションが流れ、重なる2行目が `23P01` で拒否された（`apps/api/src/db/car.test.ts`）
+- V-2（2026-10-10）：合格。Deploy API を spec/003-car で手動実行し、マイグレーション 0004 が stylus-dev に当たった（管理画面で拡張を先に有効にする手当ては要らなかった。本番でも同じく、マイグレーションの接続から有効にできる見込み）。stylus-dev の SQL Editor で、排他制約 `car_reservations_no_overlap` があることと、同じ車「BMW」に重なる2行（2030-01-01 9:00〜12:00 と 10:00〜11:00）の2行目が `23P01`（conflicting key value violates exclusion constraint）で拒否されることを確かめた。確かめた挿入はトランザクションの中で行い、2行目のエラーで取り消されたので、行は残っていない
+
 ## 移行計画
 
 - マイグレーション 0004（Drizzle Kit が生成したもの）を1本足し、手で SQL を書き足す：`btree_gist` の有効化 → `cars`・`car_reservations` の作成（RLS 有効、ポリシーなし。ここまでは生成）→ 排他制約 → 初期データ「BMW」
