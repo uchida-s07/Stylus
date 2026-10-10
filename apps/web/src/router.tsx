@@ -4,6 +4,7 @@ import { RouteError } from './components/RouteError'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { CarHistoryPage } from './pages/car/CarHistoryPage'
 import { CarPage } from './pages/car/CarPage'
+import { CarsPage } from './pages/car/CarsPage'
 import { ReservationDetailPage } from './pages/car/ReservationDetailPage'
 import { ReservationEditPage } from './pages/car/ReservationEditPage'
 import { ReservationNewPage } from './pages/car/ReservationNewPage'
@@ -38,6 +39,7 @@ export const routes: RouteObject[] = [
           { path: '/money/categories', element: <CategoriesPage /> },
           { path: '/car', element: <CarPage /> },
           { path: '/car/history', element: <CarHistoryPage /> },
+          { path: '/car/cars', element: <CarsPage /> },
           { path: '/car/reservations/new', element: <ReservationNewPage /> },
           { path: '/car/reservations/:id', element: <ReservationDetailPage /> },
           { path: '/car/reservations/:id/edit', element: <ReservationEditPage /> },
