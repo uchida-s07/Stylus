@@ -1,4 +1,6 @@
-import { CAR_MESSAGES, fromJstDateTime, toJstDate, toJstTime } from '@stylus/shared'
+import { CAR_MESSAGES, fromJstDateTime, toJstDate, toJstTime, type ApiError } from '@stylus/shared'
+import { WRITE_MESSAGES } from '../../api/responses'
+import { periodLabel } from './format'
 
 // 予約のフォーム（ReservationForm）の値と、API の入力への変換
 // 日時は日付（YYYY-MM-DD）と時刻（HH:MM）の欄に分ける（日本時間）
@@ -71,4 +73,31 @@ export function issuesToFields(error: {
   const fields: Record<string, string> = {}
   for (const issue of error.issues) fields[String(issue.path[0] ?? '_')] ??= issue.message
   return fields
+}
+
+// 予約を入れる・直すの書き込みの失敗を、フォームの知らせにする（spec 003「書き込みに失敗したとき」）
+// 入力は残す（フォームの値はそのまま）
+export function reservationWriteFailure(
+  result: { kind: 'network' } | { kind: 'failed'; status: number; error?: ApiError['error'] },
+  values: ReservationFormValues,
+): ReservationSendResult {
+  if (result.kind === 'network') return { kind: 'notice', message: WRITE_MESSAGES.network }
+  const { error } = result
+  if (error?.code === 'invalid_input' && error.fields) {
+    return { kind: 'fieldErrors', errors: toFieldErrors(error.fields, values) }
+  }
+  if (error?.code === 'overlap') {
+    const c = error.conflict
+    const message = c
+      ? `その時間は${c.displayName}の予約（${periodLabel(c.startsAt, c.endsAt)}）と重なっています`
+      : 'その時間はほかの予約と重なっています'
+    return { kind: 'notice', message }
+  }
+  if (error?.code === 'car_unavailable') {
+    return { kind: 'fieldErrors', errors: { carId: CAR_MESSAGES.carUnavailable } }
+  }
+  if (error?.code === 'already_registered') {
+    return { kind: 'notice', message: CAR_MESSAGES.alreadyRegistered }
+  }
+  return { kind: 'notice', message: WRITE_MESSAGES.failed }
 }

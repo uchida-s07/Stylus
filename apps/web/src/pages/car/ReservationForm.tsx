@@ -1,5 +1,5 @@
 import { Alert, Button, Group, NativeSelect, Stack, Textarea, TextInput } from '@mantine/core'
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import {
   oneHourLater,
   type ReservationFieldErrors,
@@ -47,8 +47,13 @@ export function ReservationForm({
     })
   }
 
+  // 再描画の前に続けて押されても、送るのは1回だけ（CAR-F-004/AC-16）
+  const sending = useRef(false)
+
   async function submit(event: FormEvent) {
     event.preventDefault()
+    if (sending.current) return
+    sending.current = true
     setSubmitting(true)
     setNotice(undefined)
     try {
@@ -56,6 +61,7 @@ export function ReservationForm({
       setErrors(result.kind === 'fieldErrors' ? result.errors : {})
       if (result.kind === 'notice') setNotice(result.message)
     } finally {
+      sending.current = false
       setSubmitting(false)
     }
   }

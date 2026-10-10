@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api } from '../../api/client'
 import { callApi } from '../../api/responses'
+import { useLeaveAsUnregistered } from '../../auth/unregistered'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { Loading } from '../../components/Loading'
 import { useApiLoad } from '../../components/useApiLoad'
@@ -11,6 +12,7 @@ import { NoCars } from './CarPage'
 import { ReservationForm } from './ReservationForm'
 import {
   issuesToFields,
+  reservationWriteFailure,
   toFieldErrors,
   toIso,
   type ReservationFormValues,
@@ -20,6 +22,7 @@ import {
 // 予約の入力（CAR-F-004）。車の選択肢は「使う」の車だけ（1台だけなら最初から選ぶ）
 export function ReservationNewPage() {
   const navigate = useNavigate()
+  const leaveAsUnregistered = useLeaveAsUnregistered()
   // 入力を開いたときに作り、送り直しでも同じ値を送る（二重登録の防止）
   const [requestId] = useState(() => crypto.randomUUID())
   const { state } = useApiLoad(() => callApi(() => api.cars.$get()))
@@ -45,8 +48,15 @@ export function ReservationNewPage() {
     }
     const json = body as ReservationInput
     const result = await callApi(() => api['car-reservations'].$post({ json }))
-    if (result.kind === 'ok') void navigate('/car')
-    return { kind: 'ok' }
+    if (result.kind === 'ok') {
+      void navigate('/car')
+      return { kind: 'ok' }
+    }
+    if (result.kind === 'unregistered') {
+      await leaveAsUnregistered()
+      return { kind: 'ok' }
+    }
+    return reservationWriteFailure(result, values)
   }
 
   return (

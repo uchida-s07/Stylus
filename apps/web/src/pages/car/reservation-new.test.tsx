@@ -1,9 +1,10 @@
 import type { ReservationInput } from '@stylus/shared'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CAR_IDS,
+  carError,
   carItem,
   carList,
   installCarApi,
@@ -12,9 +13,9 @@ import {
   reservationList,
   setDeviceClock,
 } from '../../../test/car'
-import { json } from '../../../test/fakeApi'
+import { json, networkDown } from '../../../test/fakeApi'
 import type { FamilyKey } from '../../../test/money'
-import { signIn } from '../../../test/money'
+import { deferred, signIn } from '../../../test/money'
 import { renderApp } from '../../../test/render'
 
 type Handler = Parameters<typeof installCarApi>[0][string]
@@ -191,5 +192,150 @@ describe('予約の入力の車の選択肢（CAR-F-001・002）', () => {
   it('[CAR-F-002/AC-2] 「使う」に戻した「ノア」は、予約の入力の車の選択肢に出る', async () => {
     openNewReservation({ cars: carList(carItem('BMW'), carItem('ノア', { isActive: true })) })
     expect(await carOptions()).toEqual(['BMW', 'ノア'])
+  })
+})
+
+describe('予約の入力の画面：送った後の知らせ（CAR-F-004）', () => {
+  beforeEach(() => {
+    setDeviceClock('2026-10-07 20:00')
+    signIn()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('[CAR-F-004/AC-2] 母の予約と重なると「その時間は母の予約（10月10日(土) 10:00〜11:00）と重なっています」と出る', async () => {
+    openNewReservation({
+      post: carError(409, 'overlap', 'x', {
+        conflict: {
+          displayName: '母',
+          startsAt: jstIso('2026-10-10 10:00'),
+          endsAt: jstIso('2026-10-10 11:00'),
+        },
+      }),
+    })
+    await fillNoahPeriod()
+    await submitReservation()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'その時間は母の予約（10月10日(土) 10:00〜11:00）と重なっています',
+    )
+  })
+
+  it('[CAR-F-004/AC-10] 終了の日時が過ぎていると API が止めたら「終了の日時が過ぎています」と出る', async () => {
+    // 端末の時計は少し遅れていて、画面では止められなかった
+    setDeviceClock('2026-10-07 19:50')
+    const { requests } = openNewReservation({
+      post: carError(400, 'invalid_input', 'x', {
+        fields: { endsAt: '終了の日時が過ぎています' },
+      }),
+    })
+    await userEvent.selectOptions(await screen.findByLabelText('車'), 'ノア')
+    await fillDateTime('開始', '2026-10-07', '18:00')
+    await fillDateTime('終了', '2026-10-07', '20:00')
+    await submitReservation()
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('終了の時刻')).toHaveAccessibleDescription(
+        '終了の日時が過ぎています',
+      ),
+    )
+    expect(postsOf(requests)).toHaveLength(1)
+  })
+
+  it('[CAR-F-004/AC-12] 入力している間に「ノア」が「使わない」になっていたら「この車は今は予約できません。選び直してください」と出る', async () => {
+    openNewReservation({ post: carError(409, 'car_unavailable') })
+    await fillNoahPeriod()
+    await submitReservation()
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('車')).toHaveAccessibleDescription(
+        'この車は今は予約できません。選び直してください',
+      ),
+    )
+  })
+
+  it('[CAR-F-004/AC-14] 通信できないと「通信できません。電波の良いところでもう一度お試しください。」と出て、入力は残る', async () => {
+    const { router } = openNewReservation({ post: networkDown })
+    await fillNoahPeriod()
+    await userEvent.type(screen.getByLabelText('行き先'), '大学')
+    await submitReservation()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '通信できません。電波の良いところでもう一度お試しください。',
+    )
+    expect(screen.getByLabelText('行き先')).toHaveValue('大学')
+    expect(screen.getByLabelText('開始の時刻')).toHaveValue('09:00')
+    expect(router.state.location.pathname).toBe('/car/reservations/new')
+  })
+
+  it('[CAR-F-004/AC-15] 予約の API が 500 を返すと「保存できませんでした。時間をおいてもう一度お試しください。」と出て、入力は残る', async () => {
+    openNewReservation({ post: carError(500, 'internal') })
+    await fillNoahPeriod()
+    await userEvent.type(screen.getByLabelText('行き先'), '大学')
+    await submitReservation()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '保存できませんでした。時間をおいてもう一度お試しください。',
+    )
+    expect(screen.getByLabelText('行き先')).toHaveValue('大学')
+  })
+
+  it('[CAR-F-004/AC-16] 「予約する」を続けて2回押しても、送られる要求は1回だけ', async () => {
+    const pending = deferred(() =>
+      json(reservation({ from: '2026-10-10 09:00', to: '2026-10-10 12:00' }), 201),
+    )
+    const { requests } = openNewReservation({ post: pending.handler })
+    await fillNoahPeriod()
+    const button = screen.getByRole('button', { name: '予約する' })
+    await userEvent.click(button)
+    await userEvent.click(button)
+    pending.release()
+
+    await waitFor(() => expect(postsOf(requests)).toHaveLength(1))
+  })
+
+  it('[CAR-F-004/AC-17] 通信できないと出た後に行き先を直して押し直すと、同じ request_id で送り「この予約はすでに登録されています。…」と出る', async () => {
+    let calls = 0
+    const { requests } = openNewReservation({
+      post: (request) => {
+        calls += 1
+        if (calls === 1) return networkDown(request)
+        return carError(
+          409,
+          'already_registered',
+          'この予約はすでに登録されています。予定で確かめて、必要なら直してください。',
+        )()
+      },
+    })
+    await fillNoahPeriod()
+    await userEvent.type(screen.getByLabelText('行き先'), '大学')
+    await submitReservation()
+    await screen.findByText('通信できません。電波の良いところでもう一度お試しください。')
+    await userEvent.clear(screen.getByLabelText('行き先'))
+    await userEvent.type(screen.getByLabelText('行き先'), '駅')
+    await submitReservation()
+
+    expect(
+      await screen.findByText(
+        'この予約はすでに登録されています。予定で確かめて、必要なら直してください。',
+      ),
+    ).toBeInTheDocument()
+    const bodies = await Promise.all(postsOf(requests).map((r) => r.clone().json()))
+    expect(bodies).toHaveLength(2)
+    expect(bodies[0].requestId).toBe(bodies[1].requestId)
+  })
+
+  it('[CAR-F-004/AC-20] 入力している間に「ノア」が削除されていたら「この車は見つかりません。」と出る', async () => {
+    openNewReservation({
+      post: carError(400, 'invalid_input', 'x', { fields: { carId: 'この車は見つかりません。' } }),
+    })
+    await fillNoahPeriod()
+    await submitReservation()
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('車')).toHaveAccessibleDescription('この車は見つかりません。'),
+    )
   })
 })
