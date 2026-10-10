@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router'
 import { RedirectIfSignedIn, RequireSignedIn } from './auth/guards'
 import { RouteError } from './components/RouteError'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
+import { CarHistoryPage } from './pages/car/CarHistoryPage'
 import { CarPage } from './pages/car/CarPage'
 import { ReservationDetailPage } from './pages/car/ReservationDetailPage'
 import { ReservationEditPage } from './pages/car/ReservationEditPage'
@@ -36,6 +37,7 @@ export const routes: RouteObject[] = [
           { path: '/money/settlements/:id', element: <SettlementDetailPage /> },
           { path: '/money/categories', element: <CategoriesPage /> },
           { path: '/car', element: <CarPage /> },
+          { path: '/car/history', element: <CarHistoryPage /> },
           { path: '/car/reservations/new', element: <ReservationNewPage /> },
           { path: '/car/reservations/:id', element: <ReservationDetailPage /> },
           { path: '/car/reservations/:id/edit', element: <ReservationEditPage /> },
