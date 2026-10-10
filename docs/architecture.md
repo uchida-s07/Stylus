@@ -3,7 +3,7 @@
 > システムの全体構成と、レイヤーごとの責務。実装がこれとずれたら、どちらを直すかを決めて揃える。
 > 技術判断の理由は adr/ に書く。
 
-updated: 2026-10-05
+updated: 2026-10-11
 
 ## 全体構成
 
@@ -71,10 +71,11 @@ packages/
 | ログイン状態 | supabase-js のセッションを画面に伝える。ログイン・ログアウト | `apps/web/src/auth` | セッションを消すのは、ログアウト・Supabase が無効と返したとき・API が 403 `not_a_member` を返したときだけ。それ以外（通信エラー・500）では消さない |
 | API の呼び出し | Hono RPC（`hc<AppType>`）で API を呼ぶ。アクセストークンを `Authorization: Bearer` で付け、401 なら1回だけ更新して送り直す | `apps/web/src/api` | Cookie を使う。`apps/api` の実行コードを import する（`import type` だけ許す） |
 | API の共通処理 | CORS → エラー処理（500 と Sentry）→ トークンの検証 → DB を開く → 家族の照合 の順のミドルウェア | `apps/api/src/middleware` | 順番を崩す（トークンが無効な要求で DB を開かない） |
-| API のルート | 各機能の処理（入力の検証と応答）。ロール・立場が要る操作は `requireAdmin()`・`requireAttribute()` を付ける。名義・側が絡む操作の可否は、領域ごとの判定（`money/`）で行うこともある | `apps/api/src/routes` | 重い処理をする（1要求の CPU 時間は 10ms が目安） |
+| API のルート | 各機能の処理（入力の検証と応答）。ロール・立場が要る操作は `requireAdmin()`・`requireAttribute()` を付ける。名義・側・予約した本人が絡む操作の可否は、領域ごとの判定（`money/`・`car/`）で行うこともある | `apps/api/src/routes` | 重い処理をする（1要求の CPU 時間は 10ms が目安） |
 | お金の処理 | 請求・精算の関係者の判定（関係者でなければ 404、側が違えば 403）、状態の更新、精算額の計算と精算。精算と含まれる請求は1つのトランザクションで更新する | `apps/api/src/money` | 状態遷移の表・精算額の計算を API の中だけに置く（`packages/shared` のものを画面と共有する） |
-| DB | Drizzle のスキーマとマイグレーション。要求ごとに Hyperdrive 経由で接続して閉じる | `apps/api/src/db`、`apps/api/drizzle` | RLS を有効にしないテーブルを作る。ポリシーを作る（Data API から読み書きさせない） |
-| 共有 | 型・Zod スキーマ・共通のルール（日本時間の日付、請求・精算の状態遷移の表、精算額の計算） | `packages/shared` | どちらかの実行環境に依存するコードを置く |
+| 車の処理 | 予約の本人と状態の判定（本人でなければ 403 `forbidden`、予約の状態（これから・使用中・終わった）に合わなければ 409）、予約を入れる・直す・取り消す、時間の重なりの知らせ（排他制約に当たった 409 `overlap` に、重なった予約 `conflict` を付ける） | `apps/api/src/car` | 時間の重なりを API の検索だけで止める（同時の要求は DB の排他制約で止める） |
+| DB | Drizzle のスキーマとマイグレーション。要求ごとに Hyperdrive 経由で接続して閉じる。拡張 `btree_gist`（`extensions` スキーマ）を使い、同じ車の予約の `[開始, 終了)` の重なりを排他制約で拒む（ADR-0009） | `apps/api/src/db`、`apps/api/drizzle` | RLS を有効にしないテーブルを作る。ポリシーを作る（Data API から読み書きさせない） |
+| 共有 | 型・Zod スキーマ・共通のルール（日本時間の日付、請求・精算の状態遷移の表、精算額の計算、予約の状態（これから・使用中・終わった）の求め方、日本時間の日時の表示（`10月10日(土) 9:00` の形）） | `packages/shared` | どちらかの実行環境に依存するコードを置く |
 
 ## データの流れ
 
@@ -100,7 +101,8 @@ packages/
 
 ## 規約
 
-- エラーの応答の形は `{ error: { code, message } }`。400 `invalid_input` のときだけ、項目ごとの知らせ `fields`（項目名 → 文言）が付く。code は 400 `invalid_input`、401 `unauthenticated`、403 `not_a_member` / `forbidden`、404 `not_found`、409 `state_changed`（状態や中身が画面を開いた後に変わった）/ `in_use`（使われているカテゴリー）/ `duplicate_name`（同じ名前のカテゴリー）/ `already_registered`（二重登録を防ぐ ID が同じで中身が違う請求）、500 `internal`
+- エラーの応答の形は `{ error: { code, message } }`。400 `invalid_input` のときだけ、項目ごとの知らせ `fields`（項目名 → 文言）が付く。code は 400 `invalid_input`、401 `unauthenticated`、403 `not_a_member` / `forbidden`（側が違う請求・精算の操作、本人でない予約を直す・取り消す）、404 `not_found`、409 `state_changed`（状態や中身が画面を開いた後に変わった、予約の状態に合わない操作）/ `in_use`（使われているカテゴリー、予約のある車）/ `duplicate_name`（同じ名前のカテゴリー・車）/ `already_registered`（二重登録を防ぐ ID が同じで中身が違う請求・予約）/ `overlap`（同じ車で時間が重なる予約がある。重なった予約 `conflict: { displayName, startsAt, endsAt }` が付く）/ `car_unavailable`（「使わない」の車への予約）、500 `internal`
+- 画面のボタンの出し分けのために、応答に「自分がどの側か・本人か」を付けることがある（お金の `sides`、車の予約の `isMine`）。見た目のためだけに使い、操作の可否は API が判定する
 - 日付は日本時間（UTC+9）の0時で区切る。求め方は `@stylus/shared` の `toJstDate()` 1つにまとめる。Workers の Cron は UTC で動く
 - 秘密情報（サービスロールキー、DB の接続情報、Cloudflare の API トークン）は Workers の secret と GitHub の Environments の secret にだけ置く。フロントに置くのは公開してよい値（Supabase の URL と公開キー、API の URL、Sentry の DSN）だけ
 - 新しい依存パッケージを API に足すときは、Workers で動くかを確かめる
@@ -128,9 +130,9 @@ packages/
 
 ### 家族の登録を外す
 
-お金の表（`bills`・`bill_events`・`settlements`）から `members` への外部キーは `ON DELETE RESTRICT` なので、お金の記録がある家族の `members` の行は消せない。登録を外すときは次のようにする。
+お金の表（`bills`・`bill_events`・`settlements`）と車の予約の表（`car_reservations`）から `members` への外部キーは `ON DELETE RESTRICT` なので、お金や予約の記録がある家族の `members` の行は消せない。登録を外すときは次のようにする。
 
-1. `members` の行は消さず、`auth_user_id` を NULL にする（ログインできなくなり、API は 403 `not_a_member` を返す。お金の記録と表示名は残る）
+1. `members` の行は消さず、`auth_user_id` を NULL にする（ログインできなくなり、API は 403 `not_a_member` を返す。お金・予約の記録と表示名は残る）
 2. Supabase の Auth の利用者は消してよい
 
 ### 定期的に確かめること

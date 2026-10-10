@@ -22,5 +22,11 @@
 | 名義 | 請求・精算を誰として行うか。「自分」か「家庭」。「家庭」の名義は親だけが使える | `as`（`'self' \| 'household'`、`asSchema`） | 立場（立場「親」「料理担当」とは別もの） |
 | 側 | 請求する側・請求先側、精算の払う側・受け取る側。どの操作ができるかは側で決まる | `BillSide`（`'from' \| 'to'`）、`SettlementSide`（`'payer' \| 'receiver'`）、`billSidesOf()`・`settlementSidesOf()` | 役割 |
 | 精算 | 2人の当事者の間の請求中の請求を、両方向とも差し引いてまとめて払う・受け取ること | 表 `settlements`、`/settlements`、`/money/settle` | 清算、相殺 |
-| 履歴 | 片付いた請求（確認済・取消）の一覧。お金の画面の右上のメニューから開く | `/money/history`、`HistoryPage`、`GET /bills?view=closed` | 片付いた |
+| お金の履歴 | 片付いた請求（確認済・取消）の一覧。お金の画面の右上のメニューから開く | `/money/history`、`HistoryPage`、`GET /bills?view=closed` | 片付いた |
 | 「支払い」「受け取り」 | お金の画面の一覧のタブ。自分（親なら「家庭」も）が請求先側の請求が「支払い」、請求する側の請求が「受け取り」 | `MoneyPage` の `Tab`（`'pay' \| 'receive'`）、localStorage のキー `stylus.money.billTab` | 支出・収入 |
+| 予約 | 1台の車を、開始日時から終了日時まで使う予定。予約した家族（本人）・行き先（任意）・メモ（任意）を持つ。取り消すと消える | 表 `car_reservations`、`/car-reservations`、`Reservation` | 予定（「これからの予約」の一覧を指すときだけ「予定」と呼ぶ）、ブッキング |
+| これからの予約 | 終了日時が今より後の予約（使用中を含む）。車の画面に出る | `GET /car-reservations?view=upcoming`、`/car`、`CarPage` | 未来の予約 |
+| 使用中 | これからの予約のうち、開始日時が今以前のもの。車と開始日時は変えられず、取り消せない | `reservationPhase()` の `'in_use'`（まだ始まっていないものは `'not_started'`） | 利用中、貸出中 |
+| 終わった予約 | 終了日時が今以前の予約。車の履歴に出る。直せず、取り消せない | `reservationPhase()` の `'ended'` | 過去の予約、完了 |
+| 車の履歴 | 終わった予約の一覧（新しい順に30件ずつ）。車の画面の右上のメニューから開く | `/car/history`、`CarHistoryPage`、`GET /car-reservations?view=past` | 利用履歴 |
+| 車の状態「使う」「使わない」 | 「使わない」の車は新しい予約の選択肢に出ない。車の一覧と、その車の予約は残る | `cars.is_active`、`isActive` | 無効、廃車 |
