@@ -184,3 +184,68 @@ export const billEvents = pgTable(
     index('bill_events_bill_idx').on(t.billId, t.createdAt, t.seq),
   ],
 ).enableRLS()
+
+// ---- 車（spec 003。design.md「データモデル」） ----
+// 文字列はお金と同じく、前後の空白を除いた値を保存し、文字数は char_length で数える
+
+// 車（CAR-F-001〜003・009）。版は持たない（design.md「車」）
+export const cars = pgTable(
+  'cars',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // 前後の空白を除いて保存するので、名前の一意で「前後の空白を除いて同じ名前」を防げる（「使わない」の車も含む）
+    name: text('name').notNull().unique(),
+    // 使う＝true、使わない＝false
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('cars_name_valid', trimmedText(t.name, 1, 20))],
+).enableRLS()
+
+// 分まで（秒・ミリ秒が0）
+function wholeMinute(column: AnyPgColumn) {
+  return sql`date_trunc('minute', ${column}) = ${column}`
+}
+
+// 予約（CAR-F-004〜008）。取り消した予約は行を消す（残さない）
+// 同じ車で [開始, 終了) が重なる行は、排他制約 car_reservations_no_overlap が拒む。
+// Drizzle のスキーマでは書けないので、マイグレーション 0004 に手で足している：
+//   EXCLUDE USING gist (car_id WITH =, tstzrange(starts_at, ends_at, '[)') WITH &&)
+// （car_id の = を gist で扱うため、拡張 btree_gist を extensions スキーマに入れる）
+export const carReservations = pgTable(
+  'car_reservations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // 予約のある車・家族の行は消せない
+    carId: uuid('car_id')
+      .notNull()
+      .references(() => cars.id, RESTRICT),
+    memberId: uuid('member_id').notNull().references(memberRef, RESTRICT),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    destination: text('destination'),
+    memo: text('memo'),
+    // 更新のたびに1増やす（ADR-0008）
+    version: integer('version').notNull().default(1),
+    // 二重登録の防止（画面が入力を開いたときに作る）
+    requestId: uuid('request_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('car_reservations_starts_at_minute', wholeMinute(t.startsAt)),
+    check('car_reservations_ends_at_minute', wholeMinute(t.endsAt)),
+    check('car_reservations_period_valid', sql`${t.endsAt} > ${t.startsAt}`),
+    check(
+      'car_reservations_destination_valid',
+      sql`${t.destination} is null or (${trimmedText(t.destination, 1, 50)})`,
+    ),
+    check(
+      'car_reservations_memo_valid',
+      sql`${t.memo} is null or (${trimmedText(t.memo, 1, 500)})`,
+    ),
+    unique('car_reservations_member_id_request_id_unique').on(t.memberId, t.requestId),
+    // これから：ends_at > now、履歴：ends_at <= now を (ends_at, id) の逆順で
+    index('car_reservations_ends_at_idx').on(t.endsAt),
+  ],
+).enableRLS()

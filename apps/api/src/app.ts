@@ -8,6 +8,8 @@ import { dbMiddleware } from './middleware/db'
 import { memberMiddleware } from './middleware/member'
 import { billCategoriesRoute } from './routes/bill-categories'
 import { billsRoute } from './routes/bills'
+import { carReservationsRoute } from './routes/car-reservations'
+import { carsRoute } from './routes/cars'
 import { membersRoute } from './routes/members'
 import { settlementsRoute } from './routes/settlements'
 import { meRoute } from './routes/me'
@@ -18,7 +20,7 @@ export type AppConfig = {
   openDb: (env: WorkerBindings) => DbSession
   // 予期しないエラーを知らせる（本番は Sentry）
   reportError: (error: unknown) => void
-  // 今の日時（発生日の上限・経過の日時。テストで差し替える）
+  // 今の日時（発生日の上限・経過の日時・予約の状態。テストで差し替える）
   now: () => Date
 }
 
@@ -38,6 +40,8 @@ export function createApp(config: AppConfig) {
     .route('/bills', billsRoute(config))
     .route('/settlements', settlementsRoute(config))
     .route('/bill-categories', billCategoriesRoute)
+    .route('/cars', carsRoute(config))
+    .route('/car-reservations', carReservationsRoute(config))
 }
 
 // フロントの Hono RPC（hc<AppType>）が import type で使う

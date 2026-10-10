@@ -2,6 +2,12 @@ import type { RouteObject } from 'react-router'
 import { RedirectIfSignedIn, RequireSignedIn } from './auth/guards'
 import { RouteError } from './components/RouteError'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
+import { CarHistoryPage } from './pages/car/CarHistoryPage'
+import { CarPage } from './pages/car/CarPage'
+import { CarsPage } from './pages/car/CarsPage'
+import { ReservationDetailPage } from './pages/car/ReservationDetailPage'
+import { ReservationEditPage } from './pages/car/ReservationEditPage'
+import { ReservationNewPage } from './pages/car/ReservationNewPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { BillDetailPage } from './pages/money/BillDetailPage'
@@ -13,7 +19,7 @@ import { MoneyPage } from './pages/money/MoneyPage'
 import { SettlePage } from './pages/money/SettlePage'
 import { SettlementDetailPage } from './pages/money/SettlementDetailPage'
 
-// 画面：ログイン画面（/login）、アプリのホーム（/）、Google から戻る先（/auth/callback）、お金（/money 以下）
+// 画面：ログイン画面（/login）、アプリのホーム（/）、Google から戻る先（/auth/callback）、お金（/money 以下）、車（/car 以下）
 // すべての画面を1つの親でくるみ、描画中の予期しないエラーと無い URL を RouteError で受ける
 export const routes: RouteObject[] = [
   {
@@ -31,6 +37,12 @@ export const routes: RouteObject[] = [
           { path: '/money/settle', element: <SettlePage /> },
           { path: '/money/settlements/:id', element: <SettlementDetailPage /> },
           { path: '/money/categories', element: <CategoriesPage /> },
+          { path: '/car', element: <CarPage /> },
+          { path: '/car/history', element: <CarHistoryPage /> },
+          { path: '/car/cars', element: <CarsPage /> },
+          { path: '/car/reservations/new', element: <ReservationNewPage /> },
+          { path: '/car/reservations/:id', element: <ReservationDetailPage /> },
+          { path: '/car/reservations/:id/edit', element: <ReservationEditPage /> },
         ],
       },
       { element: <RedirectIfSignedIn />, children: [{ path: '/login', element: <LoginPage /> }] },

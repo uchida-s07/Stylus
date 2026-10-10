@@ -9,8 +9,8 @@ import { Loading } from '../../components/Loading'
 import { BillForm } from './BillForm'
 import { formErrors, formToInput, type BillFormValues, type SendResult } from './billFormValues'
 import { BILL_CHANGED } from './format'
-import { NoticeScreen } from './NoticeScreen'
-import { combineResults, useApiLoad } from './useApiLoad'
+import { NoticeScreen } from '../../components/NoticeScreen'
+import { combineResults, useApiLoad } from '../../components/useApiLoad'
 
 // 請求を直す・出し直す（MONEY-F-002）。請求する側・請求先は直せない
 export function BillEditPage() {
@@ -29,13 +29,27 @@ export function BillEditPage() {
   if (state.kind === 'loading') return <Loading />
   if (state.kind === 'error') {
     if (state.code === 'not_found') {
-      return <NoticeScreen title="請求を直す" message="この請求は見つかりません。" />
+      return (
+        <NoticeScreen
+          backTo="/money"
+          backLabel="お金へ"
+          title="請求を直す"
+          message="この請求は見つかりません。"
+        />
+      )
     }
     return <ErrorScreen kind={state.error} />
   }
   const [bill, me, { members }, { categories }] = state.data
   if (!availableBillActions(bill.status, bill.settlementId !== null, bill.sides).includes('edit')) {
-    return <NoticeScreen title="請求を直す" message={BILL_CHANGED.state} />
+    return (
+      <NoticeScreen
+        backTo="/money"
+        backLabel="お金へ"
+        title="請求を直す"
+        message={BILL_CHANGED.state}
+      />
+    )
   }
 
   async function send(values: BillFormValues): Promise<SendResult> {
