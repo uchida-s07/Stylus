@@ -5,7 +5,7 @@ import { callApi } from '../../api/responses'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { Loading } from '../../components/Loading'
 import { BillRow } from './BillRow'
-import { useApiLoad } from './useApiLoad'
+import { useApiLoad } from '../../components/useApiLoad'
 
 // 履歴（MONEY-F-004）：片付いた請求（確認済・取消）を、発生日の新しい順に出す
 export function HistoryPage() {

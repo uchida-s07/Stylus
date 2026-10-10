@@ -23,8 +23,8 @@ import { callApi, WRITE_MESSAGES } from '../../api/responses'
 import { useLeaveAsUnregistered } from '../../auth/unregistered'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { Loading } from '../../components/Loading'
-import { ConfirmDialog } from './ConfirmDialog'
-import { NoticeScreen } from './NoticeScreen'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { NoticeScreen } from '../../components/NoticeScreen'
 import {
   dateLabel,
   dateTimeLabel,
@@ -36,7 +36,7 @@ import {
   STATUS_LABELS,
   yen,
 } from './format'
-import { useApiLoad } from './useApiLoad'
+import { useApiLoad } from '../../components/useApiLoad'
 
 type Ui = { label: string; title: string; confirm: string }
 
@@ -70,7 +70,14 @@ export function SettlementDetailPage() {
   if (state.kind === 'loading') return <Loading />
   if (state.kind === 'error') {
     if (state.code === 'not_found') {
-      return <NoticeScreen title="精算の中身" message="この精算は見つかりません。" />
+      return (
+        <NoticeScreen
+          backTo="/money"
+          backLabel="お金へ"
+          title="精算の中身"
+          message="この精算は見つかりません。"
+        />
+      )
     }
     return <ErrorScreen kind={state.error} />
   }

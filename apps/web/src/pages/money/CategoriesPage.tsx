@@ -18,8 +18,8 @@ import { callApi, WRITE_MESSAGES } from '../../api/responses'
 import { useLeaveAsUnregistered } from '../../auth/unregistered'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { Loading } from '../../components/Loading'
-import { ConfirmDialog } from './ConfirmDialog'
-import { useApiLoad } from './useApiLoad'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { useApiLoad } from '../../components/useApiLoad'
 
 // カテゴリーの一覧・追加・削除（MONEY-F-013・014）
 export function CategoriesPage() {

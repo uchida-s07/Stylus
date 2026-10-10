@@ -48,6 +48,9 @@ export function HomePage() {
         <Button component={Link} to="/money">
           お金
         </Button>
+        <Button component={Link} to="/car">
+          車
+        </Button>
       </Stack>
       <LogoutConfirm
         opened={confirmingLogout}

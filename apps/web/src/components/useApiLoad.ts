@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { loadErrorOf, type ApiResult } from '../../api/responses'
-import { useLeaveAsUnregistered } from '../../auth/unregistered'
-import type { ErrorKind } from '../../components/ErrorScreen'
+import { loadErrorOf, type ApiResult } from '../api/responses'
+import { useLeaveAsUnregistered } from '../auth/unregistered'
+import type { ErrorKind } from './ErrorScreen'
 
 export type LoadState<T> =
   | { kind: 'loading' }

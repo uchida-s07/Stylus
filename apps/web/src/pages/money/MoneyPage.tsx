@@ -22,7 +22,7 @@ import { callApi } from '../../api/responses'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { BillRow } from './BillRow'
 import { yen } from './format'
-import { combineResults, useApiLoad } from './useApiLoad'
+import { combineResults, useApiLoad } from '../../components/useApiLoad'
 
 type Tab = 'pay' | 'receive'
 // 選んだタブを、その端末に覚えておくキー
