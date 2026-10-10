@@ -11,7 +11,7 @@
 
 - ブランチ `spec/003-car`（push 済み、最新は `f648552`）。spec 003 は `approved`
 - tasks.md の T-1〜T-29 は完了（実装・テスト・Red の記録まで）。T-2（stylus-dev で排他制約が働くか）も 2026-10-10 に合格
-- 残りは **T-30（開発環境での手動の確認）** だけ。開発の API・DB には T-29 までが流れていて、Pages のプレビューで車の画面が開けることはオーナーが確かめた。T-30 の中身（幅 360px・1280px での操作、2人での一通りの操作、公開キーで Data API が新しい2つの表を読み書きできないこと、Cloudflare の 1102）はまだ
+- T-30（開発環境での手動の確認）も 2026-10-10 に完了。残りは `/spec-close 003`
 - テスト全体 601件・lint・型・spec-check（`spec 003 --with-tests`）はすべて合格
 - 今の車の画面：`/car` は、これからの予約を開始の日付ごとの一覧（`10月7日(水)` の見出しの下に行）で出す。予約の入力（`/car/reservations/new`）は、車の選択と、開始・終了それぞれの日付（`type="date"`）と時刻（`type="time"`）の欄。画面の部品は `apps/web/src/pages/car/`（`CarPage.tsx`・`ReservationRow.tsx`・`ReservationForm.tsx`・`ReservationNewPage.tsx`・`ReservationEditPage.tsx`・`format.ts`・`reservationFormValues.ts`）
 
