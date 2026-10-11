@@ -52,11 +52,11 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 単体テストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
   - 結果: 2026-10-11。`packages/shared/src/date.ts` に、実在する日付か（`isDateString`）・日本時間のその日の 0:00（`jstStartOfDay`）・日数を足す（`addDays`）・2つの日付の間の日数（`diffDays`）を足し、`reservationListQuerySchema` に `view: 'range'` と `from`・`to`（上限は `RANGE_MAX_DAYS` = 42）を足した。単体テストは素朴な形（日付の判定がいつも真、0:00 が null、日数を足しても変わらない・差がいつも0、`from`・`to` を何でも受け付ける）で6件が失敗するのを見てから通した。`carListItemSchema` の `colorIndex` と `apps/web/test/car.ts` の `carItem` は、T-2 で足すと `GET /cars` の応答（`satisfies CarListResponse`）が T-5 まで型の誤りになるため、T-5 で API と一緒に足す
 
-- [ ] T-3: 二重登録の知らせを「車の画面で確かめて」にする
+- [x] T-3: 二重登録の知らせを「車の画面で確かめて」にする
   - 対応: CAR-F-004 / AC-17（API）, AC-17（画面）
   - 対象ファイル: `packages/shared/src/schemas/car.ts`（`CAR_MESSAGES.alreadyRegistered`）、`apps/api/src/routes/car-reservations.test.ts`、`apps/web/src/pages/car/reservation-new.test.tsx`
   - 内容: 両方のテストの期待の文言を「この予約はすでに登録されています。車の画面で確かめて、必要なら直してください。」に直してから、文言を変える
-  - Red: 未記録（想定：API・画面の AC-17 が、知らせが「…予定で確かめて…」のままで失敗）
+  - Red: 2026-10-11 実行。両方のテストの期待（と画面のテストの偽の API の応答）を新しい文言に直して走らせ、API の AC-17 は応答の message が「…予定で確かめて…」のまま（`expected '…予定で確かめて…' to be '…車の画面で確かめて…'`）、画面の AC-17 は「…車の画面で確かめて…」の知らせが見つからない（画面は `CAR_MESSAGES.alreadyRegistered` を出すため）で失敗した
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 
 ## 3. API

@@ -364,7 +364,7 @@ describe('予約の API（CAR-F-004〜008）', () => {
       expect(rows.map((r) => r.destination)).toEqual(['大学'])
       const error = await expectError(res, 409, 'already_registered')
       expect(error.message).toBe(
-        'この予約はすでに登録されています。予定で確かめて、必要なら直してください。',
+        'この予約はすでに登録されています。車の画面で確かめて、必要なら直してください。',
       )
     })
 

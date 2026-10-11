@@ -295,7 +295,7 @@ describe('予約の入力の画面：送った後の知らせ（CAR-F-004）', (
         return carError(
           409,
           'already_registered',
-          'この予約はすでに登録されています。予定で確かめて、必要なら直してください。',
+          'この予約はすでに登録されています。車の画面で確かめて、必要なら直してください。',
         )()
       },
     })
@@ -309,7 +309,7 @@ describe('予約の入力の画面：送った後の知らせ（CAR-F-004）', (
 
     expect(
       await screen.findByText(
-        'この予約はすでに登録されています。予定で確かめて、必要なら直してください。',
+        'この予約はすでに登録されています。車の画面で確かめて、必要なら直してください。',
       ),
     ).toBeInTheDocument()
     const bodies = await Promise.all(postsOf(requests).map((r) => r.clone().json()))
