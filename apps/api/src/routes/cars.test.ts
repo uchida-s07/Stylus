@@ -1,4 +1,4 @@
-import { carListResponseSchema, carSchema } from '@stylus/shared'
+import { carListResponseSchema, carSchema, reservationListResponseSchema } from '@stylus/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createCarTestApp, expectError, type CarTestApp } from '../../test/car'
 import type { FamilyKey } from '../../test/family'
@@ -109,7 +109,7 @@ describe('車の API（CAR-F-001〜003・009）', () => {
       expect(res.status).toBe(200)
     })
 
-    it('[CAR-F-002/AC-3] くうごのこれからの予約が1件ある「ノア」は、件数1と出て、「使わない」にした後も予約は残る', async () => {
+    it('[CAR-F-002/AC-3] くうごのこれからの予約が1件ある「ノア」は、件数1と出て、「使わない」にした後も予約は10月10日を引くと出る', async () => {
       const car = await t.insertCar('ノア')
       const reservation = await t.insertReservation({
         car: 'ノア',
@@ -119,7 +119,15 @@ describe('車の API（CAR-F-001〜003・009）', () => {
       })
       expect(await noah()).toMatchObject({ upcomingCount: 1, hasReservations: true })
       expect((await setActive(car.id, false)).status).toBe(200)
-      expect(await t.findReservation(reservation.id)).toBeDefined()
+      const res = await t.call(
+        'mother',
+        'GET',
+        '/car-reservations?view=range&from=2026-10-10&to=2026-10-10',
+      )
+      expect(res.status).toBe(200)
+      const { reservations } = reservationListResponseSchema.parse(await res.json())
+      expect(reservations.map((r) => r.id)).toEqual([reservation.id])
+      expect(reservations[0]?.car).toMatchObject({ name: 'ノア', isActive: false })
       expect(await noah()).toMatchObject({ isActive: false, upcomingCount: 1 })
     })
 

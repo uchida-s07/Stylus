@@ -8,7 +8,7 @@ import {
 import { Hono } from 'hono'
 import type { AppConfig } from '../app'
 import { cancelReservation } from '../car/cancel'
-import { listPast, listUpcoming, loadReservationDetail } from '../car/list'
+import { listPast, listRange, listUpcoming, loadReservationDetail } from '../car/list'
 import { createReservation } from '../car/reservations'
 import { updateReservation } from '../car/update'
 import type { AppHono } from '../env'
@@ -19,11 +19,17 @@ import { idParam, jsonBody, queryInput } from '../validate'
 export function carReservationsRoute(config: Pick<AppConfig, 'now'>) {
   return (
     new Hono<AppHono>()
-      // 予定（CAR-F-005）と履歴（CAR-F-008）
+      // 期間で引く予約（CAR-F-005。車の画面のカレンダー）、これからの予約、履歴（CAR-F-008）
+      // view=upcoming は車の画面からは使わないが、端末に保存された古いフロントが呼ぶため残す（spec 004）
       .get('/', queryInput(reservationListQuerySchema), async (c) => {
-        const { view, before } = c.req.valid('query')
+        const { view, before, from, to } = c.req.valid('query')
         const now = config.now()
         if (view === 'past') return c.json(await listPast(c.var.db, now, before))
+        if (view === 'range') {
+          // from・to は view=range のとき必ずある（reservationListQuerySchema）
+          const reservations = await listRange(c.var.db, from!, to!)
+          return c.json({ reservations, nextCursor: null } satisfies ReservationListResponse)
+        }
         const reservations = await listUpcoming(c.var.db, now)
         return c.json({ reservations, nextCursor: null } satisfies ReservationListResponse)
       })
