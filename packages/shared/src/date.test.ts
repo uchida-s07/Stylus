@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addDays,
+  diffDays,
   formatJstDate,
   formatJstDateTime,
   formatJstTime,
   fromJstDateTime,
+  isDateString,
+  jstStartOfDay,
   toJstDate,
   toJstTime,
 } from './date'
@@ -71,5 +75,38 @@ describe('fromJstDateTime', () => {
     expect(fromJstDateTime('2026-10-10', '9:00')).toBeNull()
     expect(fromJstDateTime('2026-10-10', '24:00')).toBeNull()
     expect(fromJstDateTime('2026-02-30', '09:00')).toBeNull()
+  })
+})
+
+describe('日付（YYYY-MM-DD）の部品（spec 004）', () => {
+  it('実在する日付だけを日付とみなす', () => {
+    expect(isDateString('2026-10-10')).toBe(true)
+    expect(isDateString('2028-02-29')).toBe(true)
+    expect(isDateString('2026-02-30')).toBe(false)
+    expect(isDateString('2026-13-01')).toBe(false)
+    expect(isDateString('2026-1-01')).toBe(false)
+    expect(isDateString('20261010')).toBe(false)
+    expect(isDateString('')).toBe(false)
+  })
+
+  it('その日の日本時間の 0:00 の日時を求める（形が違えば null）', () => {
+    expect(jstStartOfDay('2026-10-10')).toEqual(new Date('2026-10-09T15:00:00Z'))
+    expect(jstStartOfDay('2027-01-01')).toEqual(new Date('2026-12-31T15:00:00Z'))
+    expect(jstStartOfDay('2026-02-30')).toBeNull()
+  })
+
+  it('日数を足す・引く（月・年をまたぐ）', () => {
+    expect(addDays('2026-10-10', 1)).toBe('2026-10-11')
+    expect(addDays('2026-10-31', 1)).toBe('2026-11-01')
+    expect(addDays('2026-12-31', 1)).toBe('2027-01-01')
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28')
+    expect(addDays('2026-10-10', 0)).toBe('2026-10-10')
+  })
+
+  it('2つの日付の間の日数（to − from）', () => {
+    expect(diffDays('2026-10-10', '2026-10-10')).toBe(0)
+    expect(diffDays('2026-09-27', '2026-11-07')).toBe(41)
+    expect(diffDays('2026-12-31', '2027-01-01')).toBe(1)
+    expect(diffDays('2026-10-11', '2026-10-10')).toBe(-1)
   })
 })

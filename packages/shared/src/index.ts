@@ -1,8 +1,12 @@
 export {
+  addDays,
+  diffDays,
   formatJstDate,
   formatJstDateTime,
   formatJstTime,
   fromJstDateTime,
+  isDateString,
+  jstStartOfDay,
   toJstDate,
   toJstTime,
 } from './date'

@@ -44,12 +44,13 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 ## 2. 共有のルール
 
-- [ ] T-2: 期間で引く入力のスキーマ・車の色の番号の形・日本時間の日の境目
+- [x] T-2: 期間で引く入力のスキーマ・車の色の番号の形・日本時間の日の境目
   - 対応: spec「3. 変更差分」API（`view=range` の入力の条件、`packages/shared` に足すもの）。T-4・T-5 の土台
   - 対象ファイル: `packages/shared/src/schemas/car.ts`（`reservationListQuerySchema` の `view` に `'range'`、`from`・`to`。`carListItemSchema` に `colorIndex`）、`packages/shared/src/date.ts`（日本時間の日付 `YYYY-MM-DD` から、その日の 0:00 の日時を求める部品・日付に日数を足す部品）、`packages/shared/src/schemas/car.test.ts`・`date.test.ts`（AC なし）、`apps/web/test/car.ts`（`carItem` に `colorIndex` を足す。形の追随）
   - 内容: `from`・`to` は `YYYY-MM-DD` の実在する日付、`from` ≤ `to`、両端を含めて 42 日まで。`view=range` のときだけ必須。`view` の既定値 `upcoming` は変えない。日の境目は `toJstDate()` と同じく Intl を使わず UTC+9 で求める（COMMON-N-009）
   - Red: 対象外（AC を持たない土台。42 日と 43 日、`from` > `to`、2月30日、形の違う日付、日本時間の 0:00 の境目の単体テストは、素朴な形で失敗するのを見てから通す）
   - 完了条件: 単体テストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 2026-10-11。`packages/shared/src/date.ts` に、実在する日付か（`isDateString`）・日本時間のその日の 0:00（`jstStartOfDay`）・日数を足す（`addDays`）・2つの日付の間の日数（`diffDays`）を足し、`reservationListQuerySchema` に `view: 'range'` と `from`・`to`（上限は `RANGE_MAX_DAYS` = 42）を足した。単体テストは素朴な形（日付の判定がいつも真、0:00 が null、日数を足しても変わらない・差がいつも0、`from`・`to` を何でも受け付ける）で6件が失敗するのを見てから通した。`carListItemSchema` の `colorIndex` と `apps/web/test/car.ts` の `carItem` は、T-2 で足すと `GET /cars` の応答（`satisfies CarListResponse`）が T-5 まで型の誤りになるため、T-5 で API と一緒に足す
 
 - [ ] T-3: 二重登録の知らせを「車の画面で確かめて」にする
   - 対応: CAR-F-004 / AC-17（API）, AC-17（画面）
