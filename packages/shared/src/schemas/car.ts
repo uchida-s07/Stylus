@@ -220,6 +220,8 @@ export const carListItemSchema = carSchema.extend({
   hasReservations: z.boolean(),
   // これからの予約の件数（「使わないにする」の確認に出す。CAR-F-002）
   upcomingCount: z.number().int(),
+  // 車の色の番号：登録の古い順に 0 から（同じ時刻なら ID の順）。カレンダーの帯の色に使う（CAR-F-005、spec 004）
+  colorIndex: z.number().int().min(0),
 })
 export type CarListItem = z.infer<typeof carListItemSchema>
 

@@ -29,6 +29,7 @@ export function carItem(name: CarName, overrides: Partial<CarListItem> = {}): Ca
     isActive: true,
     hasReservations: false,
     upcomingCount: 0,
+    colorIndex: 0,
     ...overrides,
   }
 }
