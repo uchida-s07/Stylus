@@ -24,7 +24,7 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 ## 1. 先に確かめること
 
-- [ ] T-1: FullCalendar 7.1.1 を入れ、jsdom で確かめられるかと、帯の右の余白を調べる
+- [x] T-1: FullCalendar 7.1.1 を入れ、jsdom で確かめられるかと、帯の右の余白を調べる
   - 対応: spec「3. 変更差分」画面の「部品」「先に確かめること」「大きさ」
   - 対象ファイル: `apps/web/package.json`、`pnpm-lock.yaml`。結果はこのタスクの「結果」に書く
   - 内容:
@@ -35,6 +35,12 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
     - V-2（帯の右の余白）：v7 で帯の右に帯の無い余白を残す設定があるか、無ければ CSS で作れるかを、開発サーバーの画面（幅 360px）で確かめる。指で押せる幅にする値の当たりを付ける（最終の確認は T-13）
   - Red: 対象外（調べと依存の追加）
   - 完了条件: 依存が版を固定して入り、テスト全体と lint が通る。確かめに使ったテストは残さない（同じことは T-6 以降のテストで確かめる）。V-1・V-2 の結果と、入れる前のビルドの大きさが「結果」に書かれている。V-1 がだめなら、ここで止めてオーナーに伝える
+  - 結果: 2026-10-11。
+    - 入れる前のビルドの大きさ（`vite build` の gzip）：JS 265.61 kB（`index-*.js` の1つだけ。最初に読む JS と同じ）、CSS 34.17 kB、HTML 0.36 kB。最初に読む JS と CSS の合計 299.78 kB、全体 300.14 kB
+    - 部品：v7 は `@fullcalendar/react` の1つのパッケージに月・時間割・操作がまとまっている（`@fullcalendar/react/daygrid`・`/timegrid`・`/interaction`。日本語は `@fullcalendar/react/locales/ja`）。CSS は `@fullcalendar/react/skeleton.css` が必ず要り、テーマ（`@fullcalendar/react/themes/classic` のプラグインと、その `theme.css`・`palette.css`）を足す（公式の React の説明 https://fullcalendar.io/docs/react と同梱の README で確かめた）。`temporal-polyfill` は peer の依存で、FullCalendar が `temporal-polyfill/fns/*` を直接 import する（グローバルの polyfill として読み込む手当ては要らない）。`@fullcalendar/react` 7.1.1 と `temporal-polyfill` 1.0.5 を `apps/web` に版を固定して足した。増えたのは `@fullcalendar/core`・`@full-ui/headless-calendar`（どれも MIT）と `temporal-*` だけで、Premium（`@fullcalendar/react-scheduler`）は入っていない。`apps/api`・`packages/*` の依存には入っていない
+    - V-1 は合格（捨てるテストで確かめ、残していない）。`timeZone: 'Asia/Tokyo'`・`locale: ja` で、(a) 1日の時間割（`timeGridDay`）の帯が jsdom でも DOM に出て、`eventContent` で描いた文字とデータの属性（予約の ID・色の番号）を読めた。日をまたぐ予約（22:00〜翌 2:00）はその日の分の帯が出た。(b) 月のカレンダー（`dayGridMonth`）の日のセルが42個出て、セルに `data-date="2026-10-10"` が付く。v7 では日のセルの中身の設定は `dayCellTopContent`（v6 の `dayCellContent` は無い）で、そこに印を描いて読めた。`dayCellTopContent` が受け取る `date` は日本時間のその日の 0:00 の時刻（10月10日なら `2026-10-09T15:00Z`）なので、日付は `toJstDate()` で求める。(c) `ref` で受け取った部品から `getApi().select('2026-10-10T09:00:00', '2026-10-10T12:00:00')` を呼ぶと、`select` の受け手が日本時間の開始・終了（`2026-10-10T00:00:00.000Z`〜`03:00:00.000Z`）で呼ばれた。テストから届く方法は、時間割の部品が FullCalendar の `ref` を外へ渡す口を持つ形にする（T-6 で決める）
+    - V-2 は合格。v7 では時間割の帯の入れ物の左右の余白を設定 `dayLaneInnerClass` で決めていて、classic テーマの既定は右 2.5%（幅 360px で約 5px）。自前のクラスを `dayLaneInnerClass` に渡すとテーマのクラスに**足される**ので、CSS の詳細度を上げて（`.x.x { margin-inline-end: … }`）右の余白を上書きする。開発サーバーの試しのページ（幅 360px）で 48px にすると、帯の右に約 48px の余白ができ、そこからドラッグして範囲を選べ、15分刻み（`snapDuration: '00:15'`）に揃った。同じ時間の2本の帯は既定だと重なって出るので、`slotEventOverlap: false` で横に並べる（並んだのを確かめた）。当たりは 48px（最終の確認は T-13）
+    - テスト全体（`vitest run --maxWorkers=4`）と lint が通った（1回目は開発サーバーを動かしたままで1件が時間切れで落ち、止めて走らせ直すと 601 件すべて通った）
 
 ## 2. 共有のルール
 
