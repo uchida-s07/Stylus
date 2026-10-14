@@ -105,12 +105,13 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
     - ビルドの大きさ（`vite build` の gzip。T-1 と同じ測り方）：最初に読む JS 266.21 kB（入れる前 265.61 kB。遅延読み込みの補助の分だけ増えた）、CSS 34.17 kB（変わらず）、HTML 0.36 kB。車の画面の塊は JS 72.98 kB・CSS 3.91 kB。最初に読む JS と CSS の合計 300.38 kB（入れる前 299.78 kB）、全体 377.63 kB（入れる前 300.14 kB）。最初に読む JS に FullCalendar が入っていないこと（`fc-classic`・`dayGridMonth`・`Temporal` の文字が無い）を確かめた
     - テスト全体（`vitest run --maxWorkers=4`、623件）・lint・型の検査が通った。リファクタ（日のボタンの幅）の後にもう一度テスト全体が通った
 
-- [ ] T-7: 帯を車の色で塗り、「使わない」の車の帯を薄くする
+- [x] T-7: 帯を車の色で塗り、「使わない」の車の帯を薄くする
   - 対応: CAR-F-005 / AC-4（画面）, AC-10（画面）
   - 対象ファイル: `apps/web/src/pages/car/carColors.ts`（決まった8色。9台目からは繰り返す）、`apps/web/src/pages/car/CarCalendar.tsx`、`apps/web/src/pages/car/car-page.test.tsx`
   - 内容: 帯の色は `GET /cars` の `colorIndex` 番目の色。帯に色の番号のデータの属性を付ける。「使わない」の車の帯は薄くし、印のデータの属性を付け、車の名前に「使わない」を添える。タグなし：9台目の車は1台目と同じ色（`carColors.ts` の単体テスト）
-  - Red: 未記録（想定：T-6 の帯（色を付けない）で、AC-10 は2本の帯の色の番号が同じ（属性が無い）、AC-4 は帯に「使わない」の印が無いで失敗）
+  - Red: 2026-10-14 実行。T-6 の帯（色を付けない）と、色の並びが空の `carColors.ts` で走らせ、AC-10 は色の番号の属性が無い（`expected [ [ 'ノア', undefined ], …(1) ] to deeply equal [ [ 'ノア', '1' ], [ 'フィット', '0' ] ]`）、AC-4 は帯の文字に「使わない」が無い（`toHaveTextContent` が `/ノア.*使わない.*くうご/` に合わない）で失敗した。タグなしの `carColors.ts` の単体テスト2件も、色が無い（`expected [] to have a length of 8`）で失敗した
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 2026-10-14。`carColors.ts` に白の文字が読める濃さの8色を置き、`CarCalendar` は `GET /cars` の `colorIndex` で帯を塗る（FullCalendar の予定の `color`）。帯の中身に `data-color-index`・`data-inactive` を付け、「使わない」の車は車の名前に「（使わない）」を添え、`eventClass` で `car-band-inactive`（不透明度 0.45）を付けて薄くする。AC-4 のテストは、そのクラスが FullCalendar の帯に付いていることも確かめる。AC-10 のテストは、色の番号と名前の順が逆（ノア 1・フィット 0）になる形で確かめる。テスト全体（627件）・lint・型の検査が通った。リファクタで直すところは無かったので、2回目の全体の実行はしていない
 
 - [ ] T-8: 前の月・次の月へ移る
   - 対応: CAR-F-005 / AC-9（画面）, AC-11, AC-13

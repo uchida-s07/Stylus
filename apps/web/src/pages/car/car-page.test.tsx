@@ -102,6 +102,57 @@ describe('車の画面（CAR-F-005）', () => {
     expect(await markedDays('2026年10月')).toEqual(['10月10日(土)', '10月11日(日)'])
   })
 
+  it('[CAR-F-005/AC-4] 「使わない」の車「ノア」のくうごの予約は、10月10日の時間割に薄い帯で出て、車の名前に「使わない」と添えてある', async () => {
+    installCarApi({
+      'GET /cars': () => json(carList(carItem('ノア', { isActive: false }))),
+      'GET /car-reservations': () =>
+        json(
+          reservationList([
+            reservation({ carActive: false, from: '2026-10-10 09:00', to: '2026-10-10 12:00' }),
+          ]),
+        ),
+    })
+    renderApp('/car?date=2026-10-10')
+
+    const [band, ...rest] = await bandsOn('10月10日(土)')
+    expect(rest).toEqual([])
+    expect(band).toHaveTextContent(/ノア.*使わない.*くうご/)
+    expect(band!.dataset.inactive).toBe('true')
+    // 帯を薄く塗るクラスが FullCalendar の帯に付いている
+    expect(band!.closest('.car-band-inactive')).not.toBeNull()
+  })
+
+  it('[CAR-F-005/AC-10] くうごの「ノア」と母の「フィット」の 10月10日 9:00〜12:00 は、2本の帯にそれぞれ「ノア」「フィット」と出て、色の番号が違う', async () => {
+    installCarApi({
+      'GET /cars': () =>
+        json(carList(carItem('ノア', { colorIndex: 1 }), carItem('フィット', { colorIndex: 0 }))),
+      'GET /car-reservations': () =>
+        json(
+          reservationList([
+            reservation({ car: 'ノア', from: '2026-10-10 09:00', to: '2026-10-10 12:00' }),
+            reservation({
+              car: 'フィット',
+              who: 'mother',
+              from: '2026-10-10 09:00',
+              to: '2026-10-10 12:00',
+            }),
+          ]),
+        ),
+    })
+    renderApp('/car')
+    await selectDay('10月10日(土)')
+
+    const bands = await bandsOn('10月10日(土)')
+    expect(
+      bands.map((b) => [b.textContent!.match(/ノア|フィット/)![0], b.dataset.colorIndex]),
+    ).toEqual([
+      ['ノア', '1'],
+      ['フィット', '0'],
+    ])
+    // 「使う」の車の帯は薄くしない
+    expect(bands.map((b) => b.dataset.inactive)).toEqual(['false', 'false'])
+  })
+
   it('[CAR-F-005/AC-6] 通信できないと「通信できません。電波の良いところでもう一度開いてください。」と出る', async () => {
     installCarApi({ ...withCars, 'GET /car-reservations': networkDown })
     renderApp('/car')

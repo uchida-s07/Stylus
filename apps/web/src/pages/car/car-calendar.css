@@ -47,3 +47,8 @@
   overflow: hidden;
   padding: 1px 2px;
 }
+
+/* 「使わない」の車の帯は薄くする */
+.car-band-inactive.car-band-inactive {
+  opacity: 0.45;
+}

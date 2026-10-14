@@ -13,10 +13,12 @@ import {
   reservationPhase,
   toJstDate,
   toJstTime,
+  type CarListItem,
   type Reservation,
 } from '@stylus/shared'
 import { Badge, Stack, Text, Title } from '@mantine/core'
 import { monthStart, monthVisibleRange } from './calendarDates'
+import { carColor } from './carColors'
 import { timeRange } from './format'
 import './car-calendar.css'
 
@@ -32,11 +34,14 @@ const COMMON_OPTIONS = {
 
 export function CarCalendar({
   selectedDate,
+  cars,
   reservations,
   onSelectDate,
 }: {
   // 選んだ日（日本時間の YYYY-MM-DD）
   selectedDate: string
+  // 車の一覧（帯の色の番号 colorIndex を引く）
+  cars: CarListItem[]
   // 月のカレンダーに見えている範囲の予約（API が開始の早い順に返したもの）
   reservations: Reservation[]
   onSelectDate: (date: string) => void
@@ -51,7 +56,7 @@ export function CarCalendar({
         reservedDays={reservedDays(reservations, monthVisibleRange(month))}
         onSelectDate={onSelectDate}
       />
-      <DayTimeGrid key={selectedDate} date={selectedDate} reservations={reservations} />
+      <DayTimeGrid key={selectedDate} date={selectedDate} cars={cars} reservations={reservations} />
     </Stack>
   )
 }
@@ -126,8 +131,18 @@ function MonthCalendar({
 }
 
 // 選んだ日の時間割（0:00〜24:00、30分の目盛り）。予約を帯で出す
-function DayTimeGrid({ date, reservations }: { date: string; reservations: Reservation[] }) {
+function DayTimeGrid({
+  date,
+  cars,
+  reservations,
+}: {
+  date: string
+  cars: CarListItem[]
+  reservations: Reservation[]
+}) {
   const label = formatJstDate(jstStartOfDay(date)!)
+  // 一覧に無い車（読み込みの間に増えた車）は 0 番の色にする
+  const colorIndexOf = (carId: string) => cars.find((c) => c.id === carId)?.colorIndex ?? 0
   return (
     <section aria-label={`${label}の時間割`}>
       <Title order={2} size="h4" mb="xs">
@@ -149,14 +164,27 @@ function DayTimeGrid({ date, reservations }: { date: string; reservations: Reser
         slotEventOverlap={false}
         // 帯の右に、帯の無い余白をいつも残す（そこから範囲を選べるように。幅は car-calendar.css）
         dayLaneInnerClass="car-lane-inner"
-        events={reservations.map((r) => ({
-          id: r.id,
-          start: r.startsAt,
-          end: r.endsAt,
-          extendedProps: { reservation: r },
-        }))}
+        events={reservations.map((r) => {
+          const colorIndex = colorIndexOf(r.car.id)
+          return {
+            id: r.id,
+            start: r.startsAt,
+            end: r.endsAt,
+            color: carColor(colorIndex),
+            extendedProps: { reservation: r, colorIndex },
+          }
+        })}
+        // 「使わない」の車の帯は薄くする（car-calendar.css）
+        eventClass={(arg) =>
+          (arg.event.extendedProps.reservation as Reservation).car.isActive
+            ? ''
+            : 'car-band-inactive'
+        }
         eventContent={(arg) => (
-          <ReservationBand reservation={arg.event.extendedProps.reservation as Reservation} />
+          <ReservationBand
+            reservation={arg.event.extendedProps.reservation as Reservation}
+            colorIndex={arg.event.extendedProps.colorIndex as number}
+          />
         )}
       />
     </section>
@@ -171,14 +199,27 @@ function firstScrollTime(date: string): string {
   return `${String(Math.max(hour - 1, 0)).padStart(2, '0')}:00`
 }
 
-// 帯の中身：車の名前・表示名・時間・行き先。使用中なら「使用中」
+// 帯の中身：車の名前（「使わない」の車には「使わない」を添える）・表示名・時間・行き先。使用中なら「使用中」
 // 「使用中」の印は端末の時計で決める（見た目だけ。判定は API が行う）
-function ReservationBand({ reservation: r }: { reservation: Reservation }) {
+// 色の番号と「使わない」の印はデータの属性にも付ける
+function ReservationBand({
+  reservation: r,
+  colorIndex,
+}: {
+  reservation: Reservation
+  colorIndex: number
+}) {
   const inUse = reservationPhase(r.startsAt, r.endsAt, new Date()) === 'in_use'
   return (
-    <div className="car-band" data-reservation-id={r.id}>
+    <div
+      className="car-band"
+      data-reservation-id={r.id}
+      data-color-index={colorIndex}
+      data-inactive={!r.car.isActive}
+    >
       <Text size="xs" fw={700} lh={1.3} truncate>
-        {r.car.name} {r.member.displayName}
+        {r.car.name}
+        {!r.car.isActive && '（使わない）'} {r.member.displayName}
       </Text>
       <Text size="xs" lh={1.3}>
         {timeRange(r.startsAt, r.endsAt)}

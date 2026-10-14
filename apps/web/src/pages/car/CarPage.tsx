@@ -67,6 +67,7 @@ export function CarPage() {
         ) : (
           <CarCalendar
             selectedDate={selectedDate}
+            cars={state.data[0].cars}
             reservations={state.data[1].reservations}
             onSelectDate={selectDate}
           />
