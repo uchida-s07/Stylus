@@ -16,8 +16,8 @@ import {
   type CarListItem,
   type Reservation,
 } from '@stylus/shared'
-import { Badge, Stack, Text, Title } from '@mantine/core'
-import { monthStart, monthVisibleRange } from './calendarDates'
+import { Badge, Button, Group, Stack, Text, Title } from '@mantine/core'
+import { monthMoveTarget, monthStart, monthVisibleRange } from './calendarDates'
 import { carColor } from './carColors'
 import { timeRange } from './format'
 import './car-calendar.css'
@@ -25,6 +25,7 @@ import './car-calendar.css'
 // 車の画面のカレンダー（CAR-F-005）：上に月のカレンダー、下に選んだ日の時間割
 // FullCalendar には日本時間（Asia/Tokyo）を渡して出すだけにし、日付はアプリが toJstDate() で求める（COMMON-N-009）
 // 月のカレンダーは月が変わるたび、時間割は日が変わるたびに作り直す（最初の表示位置をその日に合わせるため）
+// 2つの key は同じ値（月の1日）になりうるので、区別の印を付ける
 
 const COMMON_OPTIONS = {
   timeZone: 'Asia/Tokyo',
@@ -50,13 +51,18 @@ export function CarCalendar({
   return (
     <Stack>
       <MonthCalendar
-        key={month}
+        key={`month-${month}`}
         month={month}
         selectedDate={selectedDate}
         reservedDays={reservedDays(reservations, monthVisibleRange(month))}
         onSelectDate={onSelectDate}
       />
-      <DayTimeGrid key={selectedDate} date={selectedDate} cars={cars} reservations={reservations} />
+      <DayTimeGrid
+        key={`day-${selectedDate}`}
+        date={selectedDate}
+        cars={cars}
+        reservations={reservations}
+      />
     </Stack>
   )
 }
@@ -94,9 +100,12 @@ function MonthCalendar({
   const title = `${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月`
   return (
     <section aria-label={`${title}のカレンダー`}>
-      <Title order={2} size="h4" mb="xs">
-        {title}
-      </Title>
+      <Group justify="space-between" wrap="nowrap" mb="xs">
+        <Title order={2} size="h4">
+          {title}
+        </Title>
+        <MonthMoves selectedDate={selectedDate} onSelectDate={onSelectDate} />
+      </Group>
       <FullCalendar
         {...COMMON_OPTIONS}
         plugins={[dayGridPlugin, classicThemePlugin]}
@@ -127,6 +136,41 @@ function MonthCalendar({
         }}
       />
     </section>
+  )
+}
+
+// 前の月・次の月（その月の1日を選ぶ。今日のある月へ戻ったときは今日）と「今日」
+// 選ぶ日が変わると、車の画面がその月の見えている範囲を引き直す
+function MonthMoves({
+  selectedDate,
+  onSelectDate,
+}: {
+  selectedDate: string
+  onSelectDate: (date: string) => void
+}) {
+  const today = () => toJstDate(new Date())
+  return (
+    <Group gap={4} wrap="nowrap">
+      <Button
+        variant="default"
+        size="xs"
+        aria-label="前の月"
+        onClick={() => onSelectDate(monthMoveTarget(selectedDate, -1, today()))}
+      >
+        ‹
+      </Button>
+      <Button variant="default" size="xs" onClick={() => onSelectDate(today())}>
+        今日
+      </Button>
+      <Button
+        variant="default"
+        size="xs"
+        aria-label="次の月"
+        onClick={() => onSelectDate(monthMoveTarget(selectedDate, 1, today()))}
+      >
+        ›
+      </Button>
+    </Group>
   )
 }
 

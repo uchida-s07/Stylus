@@ -195,6 +195,72 @@ describe('車の画面（CAR-F-005）', () => {
     expect(band).toHaveTextContent('使用中')
   })
 
+  it('[CAR-F-005/AC-9] 前の月へ移り9月20日を選ぶと、9月のカレンダーの20日に印が出て、時間割にせいごの帯（9:00〜10:00）が出る', async () => {
+    const { requests } = installCarApi({
+      ...withCars,
+      'GET /car-reservations': () =>
+        json(
+          reservationList([
+            reservation({ who: 'seigo', from: '2026-09-20 09:00', to: '2026-09-20 10:00' }),
+          ]),
+        ),
+    })
+    renderApp('/car')
+    await monthCalendar('2026年10月')
+    await userEvent.click(screen.getByRole('button', { name: '前の月' }))
+
+    expect(await markedDays('2026年9月')).toEqual(['9月20日(日)'])
+    await selectDay('9月20日(日)')
+    const [band, ...rest] = await bandsOn('9月20日(日)')
+    expect(rest).toEqual([])
+    expect(band).toHaveTextContent(/ノア.*せいご.*9:00〜10:00/)
+    // 9月の見えている範囲を引き直している
+    expect(rangeRequestsOf(requests).at(-1)).toEqual({
+      view: 'range',
+      from: '2026-08-30',
+      to: '2026-10-10',
+    })
+  })
+
+  it('[CAR-F-005/AC-11] 開いた後に通信できなくなると、次の月へ移ったときに「通信できません。電波の良いところでもう一度開いてください。」と出る', async () => {
+    let calls = 0
+    installCarApi({
+      ...withCars,
+      'GET /car-reservations': (request) => {
+        calls += 1
+        return calls === 1 ? json(reservationList([])) : networkDown(request)
+      },
+    })
+    renderApp('/car')
+    await monthCalendar('2026年10月')
+    await userEvent.click(screen.getByRole('button', { name: '次の月' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '通信できません。電波の良いところでもう一度開いてください。',
+    )
+  })
+
+  it('[CAR-F-005/AC-13] 次の月へ移ると、11月のカレンダーが出て11月1日が選ばれ、時間割に母の帯（9:00〜10:00）が出る', async () => {
+    installCarApi({
+      ...withCars,
+      'GET /car-reservations': () =>
+        json(
+          reservationList([
+            reservation({ who: 'mother', from: '2026-11-01 09:00', to: '2026-11-01 10:00' }),
+          ]),
+        ),
+    })
+    const { router } = renderApp('/car')
+    await monthCalendar('2026年10月')
+    await userEvent.click(screen.getByRole('button', { name: '次の月' }))
+
+    expect(await monthCalendar('2026年11月')).toBeInTheDocument()
+    const [band, ...rest] = await bandsOn('11月1日(日)')
+    expect(rest).toEqual([])
+    expect(band).toHaveTextContent(/ノア.*母.*9:00〜10:00/)
+    expect(router.state.location.search).toBe('?date=2026-11-01')
+  })
+
   // AC ではない確認
   it('月のカレンダーに見えている範囲（9月27日〜11月7日）を1回だけ引き、選んだ日の時間割も同じ結果から出す', async () => {
     const { requests } = installCarApi({
@@ -221,6 +287,23 @@ describe('車の画面（CAR-F-005）', () => {
   it('?date が実在しない日付なら今日（10月7日）を選ぶ', async () => {
     installCarApi({ ...withCars, 'GET /car-reservations': () => json(reservationList([])) })
     renderApp('/car?date=2026-02-30')
+    expect(await bandsOn('10月7日(水)')).toEqual([])
+  })
+
+  it('次の月から「今日」で今日（10月7日）に戻る。前の月から今月へ戻ったときも今日を選ぶ', async () => {
+    installCarApi({ ...withCars, 'GET /car-reservations': () => json(reservationList([])) })
+    const { router } = renderApp('/car?date=2026-10-20')
+    await monthCalendar('2026年10月')
+
+    await userEvent.click(screen.getByRole('button', { name: '次の月' }))
+    await monthCalendar('2026年11月')
+    await userEvent.click(screen.getByRole('button', { name: '今日' }))
+    expect(await bandsOn('10月7日(水)')).toEqual([])
+    expect(router.state.location.search).toBe('?date=2026-10-07')
+
+    await userEvent.click(screen.getByRole('button', { name: '前の月' }))
+    expect(await bandsOn('9月1日(火)')).toEqual([])
+    await userEvent.click(screen.getByRole('button', { name: '次の月' }))
     expect(await bandsOn('10月7日(水)')).toEqual([])
   })
 

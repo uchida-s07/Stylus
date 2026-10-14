@@ -18,3 +18,11 @@ export function monthVisibleRange(date: string): { from: string; to: string } {
   const from = addDays(first, -weekday)
   return { from, to: addDays(from, VISIBLE_DAYS - 1) }
 }
+
+// 前の月・次の月へ移ったときに選ぶ日：その月の1日。今日のある月へ戻ったときは今日（delta は -1 か 1）
+export function monthMoveTarget(date: string, delta: number, today: string): string {
+  const [y, m] = date.split('-').map(Number) as [number, number]
+  const months = y * 12 + (m - 1) + delta
+  const first = `${String(Math.floor(months / 12)).padStart(4, '0')}-${String((months % 12) + 1).padStart(2, '0')}-01`
+  return first === monthStart(today) ? today : first
+}
