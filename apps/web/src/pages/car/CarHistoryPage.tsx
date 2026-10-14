@@ -56,7 +56,7 @@ export function CarHistoryPage() {
         {reservations.length === 0 ? (
           <Text c="dimmed">終わった予約はありません</Text>
         ) : (
-          reservations.map((r) => <ReservationRow key={r.id} reservation={r} withDate />)
+          reservations.map((r) => <ReservationRow key={r.id} reservation={r} />)
         )}
         {notice && <Alert color="red">{notice}</Alert>}
         {nextCursor && (

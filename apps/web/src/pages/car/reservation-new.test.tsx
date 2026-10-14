@@ -10,6 +10,7 @@ import {
   fillDateTime,
   installCarApi,
   jstIso,
+  monthCalendar,
   reservation,
   reservationList,
   setDeviceClock,
@@ -76,25 +77,23 @@ describe('予約の入力の画面（CAR-F-004）', () => {
     vi.useRealTimers()
   })
 
-  it('[CAR-F-004/AC-1] くうごが「ノア」・10月10日 9:00〜12:00・行き先「大学」で予約すると、予約が送られ、車の画面の「10月10日(土)」の下に出る', async () => {
+  it('[CAR-F-004/AC-1] くうごが「ノア」・10月10日 9:00〜12:00・行き先「大学」で予約すると、その中身で予約が送られ、車の画面に戻る', async () => {
     const created = reservation({
       from: '2026-10-10 09:00',
       to: '2026-10-10 12:00',
       destination: '大学',
     })
-    const { requests, router } = openNewReservation({
-      post: () => json(created, 201),
-      extra: { 'GET /car-reservations': () => json(reservationList([created])) },
-    })
+    const { requests, router } = openNewReservation({ post: () => json(created, 201) })
     await fillNoahPeriod()
     await userEvent.type(screen.getByLabelText('行き先'), '大学')
     await submitReservation()
 
-    const oct10 = await screen.findByRole('region', { name: '10月10日(土)' })
-    expect(within(oct10).getByRole('link')).toHaveTextContent(/ノア.*くうご.*9:00〜12:00.*大学/)
+    // 帯が出ることは車の画面のテスト（母が10月10日を選ぶ）で確かめる
+    expect(await monthCalendar('2026年10月')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/car')
-    const [post] = postsOf(requests)
-    expect(await post!.clone().json()).toMatchObject({
+    const posts = postsOf(requests)
+    expect(posts).toHaveLength(1)
+    expect(await posts[0]!.clone().json()).toMatchObject({
       carId: CAR_IDS.ノア,
       startsAt: jstIso('2026-10-10 09:00'),
       endsAt: jstIso('2026-10-10 12:00'),

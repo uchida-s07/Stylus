@@ -6,9 +6,9 @@ import type {
   ReservationDetail,
   ReservationListResponse,
 } from '@stylus/shared'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { vi } from 'vitest'
+import { expect, vi } from 'vitest'
 import { installFakeApi, json, meRoute } from './fakeApi'
 import { FAMILY, meOf, type FamilyKey } from './money'
 
@@ -97,6 +97,49 @@ export function installCarApi(
 export function setDeviceClock(dateTime: string) {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date(jstIso(dateTime)))
+}
+
+// ---- 車の画面のカレンダー（spec 004） ----
+
+// 車の画面は遅延読み込みで、最初に開くときはカレンダーの部品の読み込みに時間がかかるので、待つ時間を長くとる
+const CALENDAR_WAIT = { timeout: 4000 }
+
+// 月のカレンダー（「2026年10月」など）
+export function monthCalendar(month: string) {
+  return screen.findByRole('region', { name: `${month}のカレンダー` }, CALENDAR_WAIT)
+}
+
+// 月のカレンダーの日のボタン（データの属性に日付の見出し「10月7日(水)」を持つ）
+function dayButtons(calendar: HTMLElement) {
+  return Array.from(calendar.querySelectorAll<HTMLElement>('button[data-day-label]'))
+}
+
+// 月のカレンダーで印（予約あり）の付いた日を、日付の見出しで並べる
+export async function markedDays(month: string): Promise<string[]> {
+  const calendar = await monthCalendar(month)
+  await waitFor(() => expect(dayButtons(calendar)).toHaveLength(42))
+  return dayButtons(calendar)
+    .filter((b) => b.dataset.hasReservations === 'true')
+    .map((b) => b.dataset.dayLabel!)
+}
+
+// 月のカレンダーで日を押す
+// （日のボタンは FullCalendar が aria-hidden にする日のセルの上の部分に入るので、役割ではなくデータの属性で探す）
+export async function selectDay(dayLabel: string) {
+  const button = await waitFor(() => {
+    const found = document.querySelector<HTMLElement>(`button[data-day-label="${dayLabel}"]`)
+    if (!found) throw new Error(`月のカレンダーに ${dayLabel} が無い`)
+    return found
+  }, CALENDAR_WAIT)
+  await userEvent.click(button)
+}
+
+// 選んだ日の時間割の帯（日付の見出しで、その日が選ばれていることも確かめる）
+export async function bandsOn(dayLabel: string): Promise<HTMLElement[]> {
+  const timeGrid = await screen.findByRole('region', { name: `${dayLabel}の時間割` }, CALENDAR_WAIT)
+  // FullCalendar が時間割（日の列）を描き終えてから帯を数える
+  await waitFor(() => expect(timeGrid.querySelector('[data-date]')).not.toBeNull())
+  return Array.from(timeGrid.querySelectorAll<HTMLElement>('[data-reservation-id]'))
 }
 
 // 日付と時刻の欄に入れる（日付は YYYY-MM-DD、時刻は HH:MM）

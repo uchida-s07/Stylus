@@ -1,13 +1,17 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  bandsOn,
   carError,
   carItem,
   carList,
   installCarApi,
+  markedDays,
+  monthCalendar,
   reservation,
   reservationList,
+  selectDay,
   setDeviceClock,
 } from '../../../test/car'
 import { json, networkDown } from '../../../test/fakeApi'
@@ -16,7 +20,7 @@ import { renderApp } from '../../../test/render'
 
 describe('車の画面（CAR-F-005）', () => {
   beforeEach(() => {
-    // 端末の時計：日本時間 2026-10-07 20:00（tasks.md D-3）
+    // 端末の時計：日本時間 2026-10-07 20:00（tasks.md の「今」）
     setDeviceClock('2026-10-07 20:00')
     signIn()
   })
@@ -27,17 +31,20 @@ describe('車の画面（CAR-F-005）', () => {
 
   const withCars = { 'GET /cars': () => json(carList(carItem('BMW'), carItem('ノア'))) }
 
-  function dateSection(heading: string) {
-    return screen.findByRole('region', { name: heading })
-  }
+  const rangeRequestsOf = (requests: Request[]) =>
+    requests
+      .map((r) => new URL(r.url))
+      .filter((u) => u.pathname === '/car-reservations')
+      .map((u) => Object.fromEntries(u.searchParams))
 
-  it('[CAR-F-005/AC-1] 「10月7日(水)」の下にくうごの予約が「使用中」付きで、「10月8日(木)」の下に母の予約が出る', async () => {
+  it('[CAR-F-005/AC-1] 父が開くと、10月のカレンダーの7日と8日に印が出て、10月7日の時間割にせいごの帯（8:00〜10:00）と、くうごの帯（19:00〜22:00、「使用中」付き）が出る', async () => {
     installCarApi(
       {
         ...withCars,
         'GET /car-reservations': () =>
           json(
             reservationList([
+              reservation({ who: 'seigo', from: '2026-10-07 08:00', to: '2026-10-07 10:00' }),
               reservation({ who: 'kugo', from: '2026-10-07 19:00', to: '2026-10-07 22:00' }),
               reservation({ who: 'mother', from: '2026-10-08 09:00', to: '2026-10-08 10:00' }),
             ]),
@@ -47,26 +54,36 @@ describe('車の画面（CAR-F-005）', () => {
     )
     renderApp('/car')
 
-    const oct7 = await dateSection('10月7日(水)')
-    const kugoRow = within(oct7).getByRole('link')
-    expect(kugoRow).toHaveTextContent(/ノア.*くうご/)
-    expect(kugoRow).toHaveTextContent('19:00〜22:00')
-    expect(within(kugoRow).getByText('使用中')).toBeInTheDocument()
-    const oct8 = await dateSection('10月8日(木)')
-    const motherRow = within(oct8).getByRole('link')
-    expect(motherRow).toHaveTextContent(/ノア.*母.*9:00〜10:00/)
-    expect(motherRow).not.toHaveTextContent('使用中')
-    expect(screen.queryByText(/せいご/)).not.toBeInTheDocument()
+    expect(await markedDays('2026年10月')).toEqual(['10月7日(水)', '10月8日(木)'])
+    const [seigo, kugo, ...rest] = await bandsOn('10月7日(水)')
+    expect(rest).toEqual([])
+    expect(seigo).toHaveTextContent(/ノア.*せいご.*8:00〜10:00/)
+    expect(seigo).not.toHaveTextContent('使用中')
+    expect(kugo).toHaveTextContent(/ノア.*くうご.*19:00〜22:00/)
+    expect(kugo).toHaveTextContent('使用中')
   })
 
-  it('[CAR-F-005/AC-2] これからの予約が無いと「これからの予約はありません」と出る', async () => {
-    installCarApi({ ...withCars, 'GET /car-reservations': () => json(reservationList([])) })
-    renderApp('/car')
+  it('[CAR-F-005/AC-2] 10月9日に予約が無いとき、10月9日を選ぶと時間割に帯は出ず、カレンダーの9日に印は出ない', async () => {
+    installCarApi({
+      ...withCars,
+      'GET /car-reservations': () =>
+        json(
+          reservationList([
+            // 10月9日 0:00 に終わる予約と、10月10日 0:00 に始まる予約（どちらも9日にはかからない）
+            reservation({ from: '2026-10-08 22:00', to: '2026-10-09 00:00' }),
+            reservation({ from: '2026-10-10 00:00', to: '2026-10-10 02:00' }),
+          ]),
+        ),
+    })
+    const { router } = renderApp('/car')
+    await selectDay('10月9日(金)')
 
-    expect(await screen.findByText('これからの予約はありません')).toBeInTheDocument()
+    expect(await bandsOn('10月9日(金)')).toEqual([])
+    expect(await markedDays('2026年10月')).toEqual(['10月8日(木)', '10月10日(土)'])
+    expect(router.state.location.search).toBe('?date=2026-10-09')
   })
 
-  it('[CAR-F-005/AC-3] 10月10日 22:00〜10月11日 2:00 は「10月10日(土)」の下に「22:00〜10月11日(日) 2:00」と出る', async () => {
+  it('[CAR-F-005/AC-3] 10月10日 22:00〜10月11日 2:00 は、10日と11日のそれぞれの時間割に「22:00〜10月11日(日) 2:00」の帯で出て、10日と11日の両方に印が出る', async () => {
     installCarApi({
       ...withCars,
       'GET /car-reservations': () =>
@@ -74,25 +91,15 @@ describe('車の画面（CAR-F-005）', () => {
     })
     renderApp('/car')
 
-    const oct10 = await dateSection('10月10日(土)')
-    expect(within(oct10).getByRole('link')).toHaveTextContent('22:00〜10月11日(日) 2:00')
-    expect(screen.queryByRole('region', { name: '10月11日(日)' })).not.toBeInTheDocument()
-  })
-
-  it('[CAR-F-005/AC-4] 「使わない」の車「ノア」のくうごの予約が出て、車の名前に「使わない」と添えてある', async () => {
-    installCarApi({
-      'GET /cars': () => json(carList(carItem('ノア', { isActive: false }))),
-      'GET /car-reservations': () =>
-        json(
-          reservationList([
-            reservation({ carActive: false, from: '2026-10-10 09:00', to: '2026-10-10 12:00' }),
-          ]),
-        ),
-    })
-    renderApp('/car')
-
-    const oct10 = await dateSection('10月10日(土)')
-    expect(within(oct10).getByRole('link')).toHaveTextContent(/ノア.*使わない.*くうご/)
+    await selectDay('10月10日(土)')
+    const oct10 = await bandsOn('10月10日(土)')
+    expect(oct10).toHaveLength(1)
+    expect(oct10[0]).toHaveTextContent('22:00〜10月11日(日) 2:00')
+    await selectDay('10月11日(日)')
+    const oct11 = await bandsOn('10月11日(日)')
+    expect(oct11).toHaveLength(1)
+    expect(oct11[0]).toHaveTextContent('22:00〜10月11日(日) 2:00')
+    expect(await markedDays('2026年10月')).toEqual(['10月10日(土)', '10月11日(日)'])
   })
 
   it('[CAR-F-005/AC-6] 通信できないと「通信できません。電波の良いところでもう一度開いてください。」と出る', async () => {
@@ -104,7 +111,7 @@ describe('車の画面（CAR-F-005）', () => {
     )
   })
 
-  it('[CAR-F-005/AC-7] 予定の API が 500 を返すと「うまく読み込めませんでした。時間をおいてもう一度開いてください。」と出る', async () => {
+  it('[CAR-F-005/AC-7] 予約を引く API が 500 を返すと「うまく読み込めませんでした。時間をおいてもう一度開いてください。」と出る', async () => {
     installCarApi({ ...withCars, 'GET /car-reservations': carError(500, 'internal') })
     renderApp('/car')
 
@@ -113,7 +120,7 @@ describe('車の画面（CAR-F-005）', () => {
     )
   })
 
-  it('[CAR-F-005/AC-8] 車が1台も無いと「車が登録されていません」と出て、車の管理の画面へ進める（「これからの予約はありません」は出ない）', async () => {
+  it('[CAR-F-005/AC-8] 車が1台も無いと「車が登録されていません」と出て、車の管理の画面へ進める（時間割は出ない）', async () => {
     installCarApi({
       'GET /cars': () => json(carList()),
       'GET /car-reservations': () => json(reservationList([])),
@@ -121,11 +128,11 @@ describe('車の画面（CAR-F-005）', () => {
     renderApp('/car')
 
     expect(await screen.findByText('車が登録されていません')).toBeInTheDocument()
-    expect(screen.queryByText('これからの予約はありません')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /の時間割$/ })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '車の管理へ' })).toHaveAttribute('href', '/car/cars')
   })
 
-  it('[CAR-F-004/AC-9] 日本時間 20:00 に 10月7日 19:00〜22:00 の予約があると、予定に「使用中」と出る', async () => {
+  it('[CAR-F-004/AC-9] 日本時間 20:00 に 10月7日 19:00〜22:00 の予約があると、10月7日の時間割の帯に「使用中」と出る', async () => {
     installCarApi({
       ...withCars,
       'GET /car-reservations': () =>
@@ -133,19 +140,44 @@ describe('車の画面（CAR-F-005）', () => {
     })
     renderApp('/car')
 
-    const oct7 = await dateSection('10月7日(水)')
-    expect(within(oct7).getByText('使用中')).toBeInTheDocument()
+    const [band] = await bandsOn('10月7日(水)')
+    expect(band).toHaveTextContent('使用中')
   })
 
   // AC ではない確認
-  it('予約を押すと予約の中身へ、「予約する」で予約の入力へ、右上のメニューから履歴・車の管理へ進む', async () => {
-    const r = reservation({ from: '2026-10-10 09:00', to: '2026-10-10 12:00', destination: '大学' })
-    installCarApi({ ...withCars, 'GET /car-reservations': () => json(reservationList([r])) })
+  it('月のカレンダーに見えている範囲（9月27日〜11月7日）を1回だけ引き、選んだ日の時間割も同じ結果から出す', async () => {
+    const { requests } = installCarApi({
+      ...withCars,
+      'GET /car-reservations': () =>
+        json(reservationList([reservation({ from: '2026-10-20 09:00', to: '2026-10-20 10:00' })])),
+    })
+    renderApp('/car')
+    await monthCalendar('2026年10月')
+    await selectDay('10月20日(火)')
+
+    expect(await bandsOn('10月20日(火)')).toHaveLength(1)
+    expect(rangeRequestsOf(requests)).toEqual([
+      { view: 'range', from: '2026-09-27', to: '2026-11-07' },
+    ])
+  })
+
+  it('?date の日を選んだ状態で開く', async () => {
+    installCarApi({ ...withCars, 'GET /car-reservations': () => json(reservationList([])) })
+    renderApp('/car?date=2026-10-12')
+    expect(await bandsOn('10月12日(月)')).toEqual([])
+  })
+
+  it('?date が実在しない日付なら今日（10月7日）を選ぶ', async () => {
+    installCarApi({ ...withCars, 'GET /car-reservations': () => json(reservationList([])) })
+    renderApp('/car?date=2026-02-30')
+    expect(await bandsOn('10月7日(水)')).toEqual([])
+  })
+
+  it('「予約する」で予約の入力へ、右上のメニューから履歴・車の管理へ進む', async () => {
+    installCarApi({ ...withCars, 'GET /car-reservations': () => json(reservationList([])) })
     renderApp('/car')
 
-    const row = await screen.findByRole('link', { name: /大学/ })
-    expect(row).toHaveAttribute('href', `/car/reservations/${r.id}`)
-    expect(screen.getByRole('link', { name: '予約する' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: '予約する' })).toHaveAttribute(
       'href',
       '/car/reservations/new',
     )
@@ -157,12 +189,12 @@ describe('車の画面（CAR-F-005）', () => {
     ])
   })
 
-  it('アプリのホームの「車」から車の画面へ進む', async () => {
+  it('アプリのホームの「車」から車の画面へ進み、カレンダーが出る', async () => {
     installCarApi({ ...withCars, 'GET /car-reservations': () => json(reservationList([])) })
     const { router } = renderApp('/')
 
     await userEvent.click(await screen.findByRole('link', { name: '車' }))
-    expect(router.state.location.pathname).toBe('/car')
-    expect(await screen.findByText('これからの予約はありません')).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.pathname).toBe('/car'))
+    expect(await monthCalendar('2026年10月')).toBeInTheDocument()
   })
 })

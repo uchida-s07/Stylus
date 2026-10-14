@@ -7,6 +7,7 @@ import {
   carItem,
   carList,
   installCarApi,
+  monthCalendar,
   reservationDetail,
   reservationList,
   setDeviceClock,
@@ -97,13 +98,14 @@ describe('予約の中身の画面（CAR-F-005〜007）', () => {
     expect(screen.queryByRole('link', { name: '直す' })).not.toBeInTheDocument()
   })
 
-  it('[CAR-F-007/AC-1] くうごが「取り消す」を押し、確認で「取り消す」を選ぶと、取り消されて予定に出ない', async () => {
+  it('[CAR-F-007/AC-1] くうごが「取り消す」を押し、確認で「取り消す」を選ぶと、取り消されて車の画面に戻る', async () => {
     const r = kugoNotStarted({ destination: '大学' })
     const { requests, router } = openDetail([r])
     await cancelAndConfirm()
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/car'))
-    expect(await screen.findByText('これからの予約はありません')).toBeInTheDocument()
+    // 戻った先の日付と時間割は T-9 で確かめる
+    expect(await monthCalendar('2026年10月')).toBeInTheDocument()
     expect(deletesOf(requests).map((d) => new URL(d.url).pathname)).toEqual([
       `/car-reservations/${r.id}`,
     ])
@@ -163,13 +165,13 @@ describe('予約の中身の画面（CAR-F-005〜007）', () => {
     expect(screen.queryByRole('button', { name: '取り消す' })).not.toBeInTheDocument()
   })
 
-  it('[CAR-F-007/AC-8] 端末 B で終了を 13:00 に直していても、端末 A の「取り消す」で取り消されて予定に出ない', async () => {
+  it('[CAR-F-007/AC-8] 端末 B で終了を 13:00 に直していても、端末 A の「取り消す」で取り消されて車の画面に戻る', async () => {
     // API は版を見ずに取り消す（204）
     const { router } = openDetail([kugoNotStarted()])
     await cancelAndConfirm()
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/car'))
-    expect(await screen.findByText('これからの予約はありません')).toBeInTheDocument()
+    expect(await monthCalendar('2026年10月')).toBeInTheDocument()
   })
 
   // AC ではない確認

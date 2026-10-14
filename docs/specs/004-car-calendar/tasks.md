@@ -83,7 +83,7 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 ## 4. 画面
 
-- [ ] T-6: 車の画面を月のカレンダーと時間割にする（帯・印・日を選ぶ）
+- [x] T-6: 車の画面を月のカレンダーと時間割にする（帯・印・日を選ぶ）
   - 対応: CAR-F-005 / AC-1（画面）, AC-2（画面）, AC-3（画面）, AC-6, AC-7, AC-8、CAR-F-004 / AC-1（画面）, AC-9（画面）、CAR-F-006 / AC-7（画面）, AC-8（画面）
   - 対象ファイル: `apps/web/src/pages/car/CarPage.tsx`（作り直し）、`apps/web/src/pages/car/CarCalendar.tsx`（FullCalendar の月と時間割、帯の中身）、`apps/web/src/pages/car/NoCars.tsx`（`CarPage` から移す。予約の入力の画面が遅延読み込みの塊を引き込まないように）、`apps/web/src/pages/car/ReservationNewPage.tsx`（`NoCars` の import）、`apps/web/src/router.tsx`（`CarPage` を `React.lazy`）、`apps/web/src/pages/car/ReservationRow.tsx`・`CarHistoryPage.tsx`（履歴だけで使い、いつも日付を添える）、`apps/web/src/pages/car/car-page.test.tsx`（書き直し）、`apps/web/src/pages/car/reservation-edit.test.tsx`（F-006/AC-7・AC-8）、`apps/web/test/car.ts`（帯・日のセルを探す部品）
   - 内容:
@@ -95,8 +95,15 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
     - タグなし：「予約する」で予約の入力へ、右上のメニューから履歴・車の管理へ（今のテストから帯を押す部分を除いたもの。帯を押す部分は T-9）、アプリのホームの「車」から車の画面へ（「これからの予約はありません」でなくカレンダーが出るのを待つ）
     - 車の画面へ戻ったことを古い一覧の文言（「これからの予約はありません」「10月10日(土)」の見出し）で確かめていた既存テスト（`reservation-detail.test.tsx` の CAR-F-007/AC-1・AC-8、`reservation-new.test.tsx` の CAR-F-004/AC-1）は、この時点では「車の画面のカレンダーが出た」ことを確かめる形に直す。戻った先の日付と帯は T-9・T-10 で確かめる。`reservation-new.test.tsx` の AC-1 は、予約の送信の中身（車・日時・行き先）を確かめる形にし、帯が出ることは `car-page.test.tsx` の AC-1（母が10月10日を選ぶ）で確かめる
     - 大きさ：ビルドの大きさ（gzip）を T-1 と同じ測り方で測り、「結果」に書く。最初に読む JS に FullCalendar が入っていないことを確かめる
-  - Red: 未記録（想定：書き直したテストを今の一覧の画面で走らせ、F-005/AC-1・AC-3、F-004/AC-1・AC-9、F-006/AC-7・AC-8 は時間割の帯が無い、F-005/AC-2 は日のセル（10月9日）が無いで失敗。F-005/AC-6・AC-7・AC-8 は振る舞いが変わらない（AC-7 は言い方だけの変更）ので対象外とし、作り直しの後も通ることを確かめる）
+  - Red: 2026-10-14 実行。書き直したテストを今の一覧の画面で走らせ、13件が失敗した：F-005/AC-1 と F-004/AC-9・F-006/AC-7・AC-8 は時間割が無い（`Unable to find role="region" and name "10月7日(水)の時間割"` など）、F-005/AC-2・AC-3 は月のカレンダーの日が無い（`月のカレンダーに 10月9日(金) が無い`）、F-004/AC-1 と F-007/AC-1・AC-8（戻った先の仮の形）は月のカレンダーが無い（`Unable to find role="region" and name "2026年10月のカレンダー"`）。タグなしの4件（見えている範囲を1回引く、`?date` の日を選ぶ、`?date` が実在しない日付なら今日、ホームから車の画面へ進みカレンダーが出る）も同じ理由で失敗した。F-005/AC-6・AC-7・AC-8 は振る舞いが変わらないので対象外とし、作り直しの後も通ることを確かめた
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体と lint が通る。ビルドの大きさが「結果」に書かれている
+  - 結果: 2026-10-14。
+    - `CarPage` を作り直し、`CarCalendar`（月のカレンダーと時間割。月が変わるたび・日が変わるたびに作り直して、最初の表示位置をその日に合わせる）、`NoCars`、`calendarDates`（月の1日・見えている範囲の42日）を足した。`/car` は `LazyCarPage`（`React.lazy`＋`Suspense`）で開いたときに読み込む（`router.tsx` に部品を置くと lint の react-refresh の規則に当たるため、別のファイルにした）。月を移ったときに読み直せるよう、`useApiLoad` に読み直しの鍵（`key`）を足した（読み終わるまでは前の結果を出したまま）。`ReservationRow` は履歴だけで使い、いつも日付を添える
+    - `calendarDates.ts` は見えている範囲を求めるのに T-6 で要るので、T-8 から前倒しして作り、単体テスト（月の初めが日曜・土曜の月、12月から1月）も足した（素朴な形で失敗するのを見る手順は踏んでいない。AC を持たない部品）
+    - v7 で分かったこと：月のカレンダーの日のセルの上の部分（`dayCellTopContent` を描く所）を FullCalendar が `aria-hidden="true"` にし、日付の読み上げはセル（`role="gridcell"`、`aria-label="2026年9月27日"`）が持つ。そのため日のボタンは役割（role）では探せず、テストの部品（`test/car.ts` の `selectDay`・`markedDays`）はデータの属性（`data-day-label`・`data-has-reservations`）で探す。テーマはセルの上の部分の数字を右に寄せるので、`dayCellTopClass` に自前のクラスを渡してボタンを幅いっぱいに広げた
+    - 開発サーバーの試しのページ（コミットしていない）で、日のボタン・印・選んだ日の色、帯の文字（白で読める）、同じ時間の2本の帯が横に並ぶこと、帯の右の余白を目で確かめた。月のカレンダーのセルが縦に長め（1行 約 90px。6行で 500px 余り）なので、スマホで時間割まで遠くないかを T-13 で確かめる
+    - ビルドの大きさ（`vite build` の gzip。T-1 と同じ測り方）：最初に読む JS 266.21 kB（入れる前 265.61 kB。遅延読み込みの補助の分だけ増えた）、CSS 34.17 kB（変わらず）、HTML 0.36 kB。車の画面の塊は JS 72.98 kB・CSS 3.91 kB。最初に読む JS と CSS の合計 300.38 kB（入れる前 299.78 kB）、全体 377.63 kB（入れる前 300.14 kB）。最初に読む JS に FullCalendar が入っていないこと（`fc-classic`・`dayGridMonth`・`Temporal` の文字が無い）を確かめた
+    - テスト全体（`vitest run --maxWorkers=4`、623件）・lint・型の検査が通った。リファクタ（日のボタンの幅）の後にもう一度テスト全体が通った
 
 - [ ] T-7: 帯を車の色で塗り、「使わない」の車の帯を薄くする
   - 対応: CAR-F-005 / AC-4（画面）, AC-10（画面）
@@ -107,8 +114,8 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
 
 - [ ] T-8: 前の月・次の月へ移る
   - 対応: CAR-F-005 / AC-9（画面）, AC-11, AC-13
-  - 対象ファイル: `apps/web/src/pages/car/CarPage.tsx`、`apps/web/src/pages/car/CarCalendar.tsx`、`apps/web/src/pages/car/calendarDates.ts`（月の1日・見えている範囲の求め方）、`apps/web/src/pages/car/car-page.test.tsx`
-  - 内容: 前の月・次の月へ移ると、その月の1日（今月へ戻ったときは今日）を選び、`?date=` を置き換え、その月の見えている範囲を `view=range` で引き直す。「今日」で今日へ。読み込めなかったときは読み込みの知らせ（AC-11）。タグなし：「今日」で今日に戻る、`calendarDates.ts` の単体テスト（月の初めが日曜・土曜の月、12月から1月）
+  - 対象ファイル: `apps/web/src/pages/car/CarPage.tsx`、`apps/web/src/pages/car/CarCalendar.tsx`、`apps/web/src/pages/car/calendarDates.ts`（月の1日・見えている範囲の求め方。T-6 で作った）、`apps/web/src/pages/car/car-page.test.tsx`
+  - 内容: 前の月・次の月へ移ると、その月の1日（今月へ戻ったときは今日）を選び、`?date=` を置き換え、その月の見えている範囲を `view=range` で引き直す。「今日」で今日へ。読み込めなかったときは読み込みの知らせ（AC-11）。タグなし：「今日」で今日に戻る、`calendarDates.ts` に足す部品の単体テスト（見えている範囲の単体テストは T-6 で足した）
   - Red: 未記録（想定：T-7 の画面（月を移っても選んだ日と読み込みが変わらない）で、AC-9 は9月20日に印と帯が無い、AC-13 は11月1日が選ばれず帯が無い、AC-11 は月を移っても要求が出ず知らせが無いで失敗）
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
 

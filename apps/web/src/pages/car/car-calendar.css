@@ -1,0 +1,49 @@
+/* 車の画面のカレンダー（CarCalendar.tsx） */
+
+/* 時間割の帯の右に、帯の無い余白をいつも残す（指で押して範囲を選び始められる幅。spec 004 T-1 の V-2）
+   テーマの dayLaneInnerClass（右 2.5%）に足されるクラスなので、詳細度を上げて上書きする */
+.car-lane-inner.car-lane-inner {
+  margin-inline-end: 48px;
+}
+
+/* 月のカレンダーの日のセルの上の部分（テーマは数字を右に寄せる）。日のボタンを幅いっぱいに置く */
+.car-day-top.car-day-top {
+  display: block;
+  width: 100%;
+  padding: 0;
+}
+
+/* 月のカレンダーの日。押すとその日を選ぶ */
+.car-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.car-day[aria-pressed='true'] {
+  background: var(--mantine-color-blue-light);
+  font-weight: 700;
+}
+
+/* 予約のある日の印 */
+.car-day-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mantine-color-blue-filled);
+}
+
+.car-band {
+  overflow: hidden;
+  padding: 1px 2px;
+}

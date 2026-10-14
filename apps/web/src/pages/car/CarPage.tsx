@@ -1,4 +1,4 @@
-import { formatJstDate, toJstDate, type Reservation } from '@stylus/shared'
+import { isDateString, toJstDate } from '@stylus/shared'
 import {
   ActionIcon,
   Anchor,
@@ -9,25 +9,38 @@ import {
   Loader,
   Menu,
   Stack,
-  Text,
   Title,
 } from '@mantine/core'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
 import { callApi } from '../../api/responses'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { combineResults, useApiLoad } from '../../components/useApiLoad'
-import { ReservationRow } from './ReservationRow'
+import { monthVisibleRange } from './calendarDates'
+import { CarCalendar } from './CarCalendar'
+import { NoCars } from './NoCars'
 
-// 車の画面（CAR-F-005）：これからの予約（使用中を含む）を、開始の日付（日本時間）ごとに出す
+// 車の画面（CAR-F-005）：月のカレンダーと、選んだ日の時間割
+// 選んだ日は URL の ?date=YYYY-MM-DD（無い・形が違うときは今日）。日を選ぶと置き換える（履歴は積まない）
+// 予約は、月のカレンダーに見えている範囲（6週）を1回で引き、選んだ日の時間割も同じ結果から出す
 // 履歴と車の管理へは、右上のメニューから進む
 export function CarPage() {
-  const { state } = useApiLoad(async () =>
-    combineResults([
-      await callApi(() => api.cars.$get()),
-      await callApi(() => api['car-reservations'].$get({ query: { view: 'upcoming' } })),
-    ]),
+  const [searchParams, setSearchParams] = useSearchParams()
+  const dateParam = searchParams.get('date')
+  const selectedDate = dateParam && isDateString(dateParam) ? dateParam : toJstDate(new Date())
+  const range = monthVisibleRange(selectedDate)
+  const { state } = useApiLoad(
+    async () =>
+      combineResults([
+        await callApi(() => api.cars.$get()),
+        await callApi(() => api['car-reservations'].$get({ query: { view: 'range', ...range } })),
+      ]),
+    range.from,
   )
+
+  function selectDate(date: string) {
+    setSearchParams({ date }, { replace: true })
+  }
 
   if (state.kind === 'error') return <ErrorScreen kind={state.error} />
   return (
@@ -52,7 +65,11 @@ export function CarPage() {
         ) : state.data[0].cars.length === 0 ? (
           <NoCars />
         ) : (
-          <Upcoming reservations={state.data[1].reservations} />
+          <CarCalendar
+            selectedDate={selectedDate}
+            reservations={state.data[1].reservations}
+            onSelectDate={selectDate}
+          />
         )}
       </Stack>
     </Container>
@@ -78,38 +95,4 @@ function CarMenu() {
       </Menu.Dropdown>
     </Menu>
   )
-}
-
-// 車が1台も無い（CAR-F-005/AC-8）
-export function NoCars({ message = '車が登録されていません' }: { message?: string }) {
-  return (
-    <Stack gap="xs">
-      <Text>{message}</Text>
-      <Anchor component={Link} to="/car/cars">
-        車の管理へ
-      </Anchor>
-    </Stack>
-  )
-}
-
-// これからの予約を開始の日付ごとに（API が開始の早い順に返す）
-function Upcoming({ reservations }: { reservations: Reservation[] }) {
-  if (reservations.length === 0) return <Text c="dimmed">これからの予約はありません</Text>
-  const days: { date: string; heading: string; items: Reservation[] }[] = []
-  for (const r of reservations) {
-    const date = toJstDate(new Date(r.startsAt))
-    const last = days.at(-1)
-    if (last?.date === date) last.items.push(r)
-    else days.push({ date, heading: formatJstDate(r.startsAt), items: [r] })
-  }
-  return days.map((day) => (
-    <Stack key={day.date} component="section" aria-label={day.heading} gap="xs">
-      <Title order={2} size="h4">
-        {day.heading}
-      </Title>
-      {day.items.map((r) => (
-        <ReservationRow key={r.id} reservation={r} />
-      ))}
-    </Stack>
-  ))
 }

@@ -8,7 +8,7 @@ import { useLeaveAsUnregistered } from '../../auth/unregistered'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { Loading } from '../../components/Loading'
 import { useApiLoad } from '../../components/useApiLoad'
-import { NoCars } from './CarPage'
+import { NoCars } from './NoCars'
 import { ReservationForm } from './ReservationForm'
 import {
   issuesToFields,
