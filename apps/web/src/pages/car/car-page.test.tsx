@@ -511,6 +511,8 @@ describe('車の画面（CAR-F-005）', () => {
     async (_, path) => {
       installCarApi({ ...withCars, 'GET /car-reservations': () => json(reservationList([])) })
       renderApp(path)
+      // 読み込みとカレンダーの描画が済んでからメニューを開く（負荷が高いと描画の途中で開いて間に合わないことがある）
+      await screen.findByRole('region', { name: /(のカレンダー|の時間割)$/ }, { timeout: 4000 })
 
       expect(await screen.findByRole('link', { name: '予約する' })).toHaveAttribute(
         'href',
