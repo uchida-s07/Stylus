@@ -7,7 +7,7 @@ import {
   carItem,
   carList,
   installCarApi,
-  monthCalendar,
+  bandsOn,
   reservationDetail,
   reservationList,
   setDeviceClock,
@@ -98,17 +98,26 @@ describe('予約の中身の画面（CAR-F-005〜007）', () => {
     expect(screen.queryByRole('link', { name: '直す' })).not.toBeInTheDocument()
   })
 
-  it('[CAR-F-007/AC-1] くうごが「取り消す」を押し、確認で「取り消す」を選ぶと、取り消されて車の画面に戻る', async () => {
+  it('[CAR-F-007/AC-1] くうごが「取り消す」を押し、確認で「取り消す」を選ぶと、取り消されて10月10日の時間割に出ない', async () => {
     const r = kugoNotStarted({ destination: '大学' })
     const { requests, router } = openDetail([r])
     await cancelAndConfirm()
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/car'))
-    // 戻った先の日付と時間割は T-9 で確かめる
-    expect(await monthCalendar('2026年10月')).toBeInTheDocument()
+    // 取り消した後の API は、その予約を返さない
+    expect(await bandsOn('10月10日(土)')).toEqual([])
+    expect(router.state.location.search).toBe('?date=2026-10-10')
     expect(deletesOf(requests).map((d) => new URL(d.url).pathname)).toEqual([
       `/car-reservations/${r.id}`,
     ])
+  })
+
+  it('[CAR-F-005/AC-15] くうごが 10月10日 9:00〜12:00 の予約を取り消すと、車の画面に戻り、10月10日が選ばれていて、時間割にその帯は出ない', async () => {
+    const { router } = openDetail([kugoNotStarted()])
+    await cancelAndConfirm()
+
+    expect(await bandsOn('10月10日(土)')).toEqual([])
+    expect(router.state.location.pathname).toBe('/car')
+    expect(router.state.location.search).toBe('?date=2026-10-10')
   })
 
   it('[CAR-F-007/AC-2] 「取り消す」を押し、確認で「キャンセル」を選ぶと、予約は残る', async () => {
@@ -165,13 +174,13 @@ describe('予約の中身の画面（CAR-F-005〜007）', () => {
     expect(screen.queryByRole('button', { name: '取り消す' })).not.toBeInTheDocument()
   })
 
-  it('[CAR-F-007/AC-8] 端末 B で終了を 13:00 に直していても、端末 A の「取り消す」で取り消されて車の画面に戻る', async () => {
+  it('[CAR-F-007/AC-8] 端末 B で終了を 13:00 に直していても、端末 A の「取り消す」で取り消されて10月10日の時間割に出ない', async () => {
     // API は版を見ずに取り消す（204）
     const { router } = openDetail([kugoNotStarted()])
     await cancelAndConfirm()
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/car'))
-    expect(await monthCalendar('2026年10月')).toBeInTheDocument()
+    expect(await bandsOn('10月10日(土)')).toEqual([])
+    expect(router.state.location.search).toBe('?date=2026-10-10')
   })
 
   // AC ではない確認

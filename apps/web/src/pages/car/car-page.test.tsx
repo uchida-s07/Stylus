@@ -10,6 +10,7 @@ import {
   markedDays,
   monthCalendar,
   reservation,
+  reservationDetail,
   reservationList,
   selectDay,
   setDeviceClock,
@@ -153,6 +154,30 @@ describe('車の画面（CAR-F-005）', () => {
     expect(bands.map((b) => b.dataset.inactive)).toEqual(['false', 'false'])
   })
 
+  it('[CAR-F-005/AC-5] 母が時間割でくうごの予約の帯を押すと、行き先「大学」とメモ「帰りに給油する」が出る', async () => {
+    const detail = reservationDetail({
+      from: '2026-10-10 09:00',
+      to: '2026-10-10 12:00',
+      destination: '大学',
+      memo: '帰りに給油する',
+    })
+    installCarApi(
+      {
+        ...withCars,
+        'GET /car-reservations': () => json(reservationList([detail])),
+        'GET /car-reservations/:id': () => json(detail),
+      },
+      'mother',
+    )
+    const { router } = renderApp('/car?date=2026-10-10')
+    const [band] = await bandsOn('10月10日(土)')
+    await userEvent.click(band!)
+
+    expect(await screen.findByText('帰りに給油する')).toBeInTheDocument()
+    expect(screen.getByText('大学')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe(`/car/reservations/${detail.id}`)
+  })
+
   it('[CAR-F-005/AC-6] 通信できないと「通信できません。電波の良いところでもう一度開いてください。」と出る', async () => {
     installCarApi({ ...withCars, 'GET /car-reservations': networkDown })
     renderApp('/car')
@@ -238,6 +263,24 @@ describe('車の画面（CAR-F-005）', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '通信できません。電波の良いところでもう一度開いてください。',
     )
+  })
+
+  it('[CAR-F-005/AC-12] 10月10日の帯を押して予約の中身を開き、「車へ」で戻ると、10月10日が選ばれていて、時間割にその帯が出る', async () => {
+    const detail = reservationDetail({ from: '2026-10-10 09:00', to: '2026-10-10 12:00' })
+    installCarApi({
+      ...withCars,
+      'GET /car-reservations': () => json(reservationList([detail])),
+      'GET /car-reservations/:id': () => json(detail),
+    })
+    const { router } = renderApp('/car')
+    await selectDay('10月10日(土)')
+    const [band] = await bandsOn('10月10日(土)')
+    await userEvent.click(band!)
+    await userEvent.click(await screen.findByRole('link', { name: '車へ' }))
+
+    const bands = await bandsOn('10月10日(土)')
+    expect(bands.map((b) => b.dataset.reservationId)).toEqual([detail.id])
+    expect(router.state.location.search).toBe('?date=2026-10-10')
   })
 
   it('[CAR-F-005/AC-13] 次の月へ移ると、11月のカレンダーが出て11月1日が選ばれ、時間割に母の帯（9:00〜10:00）が出る', async () => {

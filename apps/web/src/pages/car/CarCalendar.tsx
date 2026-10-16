@@ -17,6 +17,7 @@ import {
   type Reservation,
 } from '@stylus/shared'
 import { Badge, Button, Group, Stack, Text, Title } from '@mantine/core'
+import { useNavigate } from 'react-router'
 import { monthMoveTarget, monthStart, monthVisibleRange } from './calendarDates'
 import { carColor } from './carColors'
 import { timeRange } from './format'
@@ -184,6 +185,7 @@ function DayTimeGrid({
   cars: CarListItem[]
   reservations: Reservation[]
 }) {
+  const navigate = useNavigate()
   const label = formatJstDate(jstStartOfDay(date)!)
   // 一覧に無い車（読み込みの間に増えた車）は 0 番の色にする
   const colorIndexOf = (carId: string) => cars.find((c) => c.id === carId)?.colorIndex ?? 0
@@ -215,9 +217,15 @@ function DayTimeGrid({
             start: r.startsAt,
             end: r.endsAt,
             color: carColor(colorIndex),
+            // 帯はその予約の中身へのリンク（押したときはアプリの中で移る。下の eventClick）
+            url: `/car/reservations/${r.id}`,
             extendedProps: { reservation: r, colorIndex },
           }
         })}
+        eventClick={(arg) => {
+          arg.jsEvent.preventDefault()
+          void navigate(arg.event.url)
+        }}
         // 「使わない」の車の帯は薄くする（car-calendar.css）
         eventClass={(arg) =>
           (arg.event.extendedProps.reservation as Reservation).car.isActive

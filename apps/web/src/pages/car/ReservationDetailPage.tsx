@@ -1,4 +1,4 @@
-import { CAR_MESSAGES, reservationPhase, type ReservationDetail } from '@stylus/shared'
+import { CAR_MESSAGES, reservationPhase, toJstDate, type ReservationDetail } from '@stylus/shared'
 import { Alert, Anchor, Badge, Button, Container, Group, Stack, Text, Title } from '@mantine/core'
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
@@ -43,11 +43,13 @@ export function ReservationDetailPage() {
   const phase = reservationPhase(r.startsAt, r.endsAt, new Date())
   const canEdit = r.isMine && phase !== 'ended'
   const canCancel = r.isMine && phase === 'not_started'
+  // 車の画面へ戻るときは、この予約の開始の日を選んだ状態にする（CAR-F-005）
+  const carPageOfDay = `/car?date=${toJstDate(new Date(r.startsAt))}`
 
   async function cancel() {
     const result = await callApi(() => api['car-reservations'][':id'].$delete({ param: { id } }))
     setConfirming(false)
-    if (result.kind === 'ok') return void navigate('/car')
+    if (result.kind === 'ok') return void navigate(carPageOfDay)
     if (result.kind === 'unregistered') return leaveAsUnregistered()
     if (result.kind === 'network') return setNotice(WRITE_MESSAGES.network)
     const code = result.error?.code
@@ -65,7 +67,7 @@ export function ReservationDetailPage() {
       <Stack>
         <Group justify="space-between">
           <Title order={1}>予約</Title>
-          <Anchor component={Link} to="/car">
+          <Anchor component={Link} to={carPageOfDay}>
             車へ
           </Anchor>
         </Group>
