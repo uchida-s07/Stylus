@@ -167,6 +167,9 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
     6. Cloudflare で stylus-api-dev に 1102（CPU 時間の超過）が出ていないことを確かめる
   - Red: 対象外（手動の確認）
   - 完了条件: すべての確認が済み、結果が書かれている。直すことが見つかったら、spec の範囲ならタスクを足し、範囲の外ならオーナーに伝える
+  - 結果（途中）: 2026-10-16。
+    1. spec/004-car-calendar を push し（8198dfd）、`gh workflow run deploy-api.yml --ref spec/004-car-calendar` で開発環境へ出した（Actions の実行 38841260202 は success）。`view=range` はトークン無しで 401 になった。ただし無いパスもトークン無しでは 401 になる（認証が経路の前にかかる）ので、これだけではルートが載っていることまでは確かめられない。載っていることは 2. の画面で確かめる。Pages のプレビュー（https://spec-004-car-calendar.stylus-family.pages.dev/ 、Cloudflare Pages の確認は success）が開けることを確かめた
+    2.〜6. はオーナーの確認待ち
 
 ## 6. この spec の外のリリース作業（/spec-close の後）
 
