@@ -11,7 +11,7 @@ import {
   fillDateTime,
   installCarApi,
   jstIso,
-  monthCalendar,
+  dayView,
   reservation,
   reservationList,
   setDeviceClock,
@@ -81,7 +81,7 @@ describe('予約の入力の画面（CAR-F-004）', () => {
     vi.useRealTimers()
   })
 
-  it('[CAR-F-004/AC-1] くうごが「ノア」・10月10日 9:00〜12:00・行き先「大学」で予約すると、その中身で予約が送られ、車の画面に戻る', async () => {
+  it('[CAR-F-004/AC-1] くうごが「ノア」・10月10日 9:00〜12:00・行き先「大学」で予約すると、その中身で予約が送られ、10月10日の時間割の画面に戻る', async () => {
     const created = reservation({
       from: '2026-10-10 09:00',
       to: '2026-10-10 12:00',
@@ -92,8 +92,8 @@ describe('予約の入力の画面（CAR-F-004）', () => {
     await userEvent.type(screen.getByLabelText('行き先'), '大学')
     await submitReservation()
 
-    // 帯が出ることは車の画面のテスト（母が10月10日を選ぶ）で確かめる
-    expect(await monthCalendar('2026年10月')).toBeInTheDocument()
+    // 帯が出ることは車の画面のテスト（母が10日をタップする）で確かめる
+    expect(await dayView('10月10日(土)')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/car')
     const posts = postsOf(requests)
     expect(posts).toHaveLength(1)
@@ -106,7 +106,7 @@ describe('予約の入力の画面（CAR-F-004）', () => {
   })
 
   it(
-    '[CAR-F-004/AC-26] くうごが車の画面の「予約する」から「ノア」を 10月10日 9:00〜12:00 で予約すると、車の画面に戻り、10月10日が選ばれていて、時間割にその帯が出る',
+    '[CAR-F-004/AC-26] くうごが車の画面の「予約する」から「ノア」を 10月10日 9:00〜12:00 で予約すると、10月10日の時間割の画面に戻り、その帯が出る',
     async () => {
       const created = reservation({ from: '2026-10-10 09:00', to: '2026-10-10 12:00' })
       let posted = false

@@ -6,8 +6,9 @@ import {
   carError,
   carItem,
   carList,
-  installCarApi,
   bandsOn,
+  installCarApi,
+  markedDays,
   reservationDetail,
   reservationList,
   setDeviceClock,
@@ -98,7 +99,7 @@ describe('予約の中身の画面（CAR-F-005〜007）', () => {
     expect(screen.queryByRole('link', { name: '直す' })).not.toBeInTheDocument()
   })
 
-  it('[CAR-F-007/AC-1] くうごが「取り消す」を押し、確認で「取り消す」を選ぶと、取り消されて10月10日の時間割に出ない', async () => {
+  it('[CAR-F-007/AC-1] くうごが「取り消す」を押し、確認で「取り消す」を選ぶと、取り消されて10月の月のカレンダーにも10月10日の時間割にも出ない', async () => {
     const r = kugoNotStarted({ destination: '大学' })
     const { requests, router } = openDetail([r])
     await cancelAndConfirm()
@@ -106,12 +107,14 @@ describe('予約の中身の画面（CAR-F-005〜007）', () => {
     // 取り消した後の API は、その予約を返さない
     expect(await bandsOn('10月10日(土)')).toEqual([])
     expect(router.state.location.search).toBe('?date=2026-10-10')
+    await userEvent.click(screen.getByRole('button', { name: '月へ戻る' }))
+    expect(await markedDays('2026年10月')).toEqual([])
     expect(deletesOf(requests).map((d) => new URL(d.url).pathname)).toEqual([
       `/car-reservations/${r.id}`,
     ])
   })
 
-  it('[CAR-F-005/AC-15] くうごが 10月10日 9:00〜12:00 の予約を取り消すと、車の画面に戻り、10月10日が選ばれていて、時間割にその帯は出ない', async () => {
+  it('[CAR-F-005/AC-15] くうごが 10月10日 9:00〜12:00 の予約を取り消すと、10月10日の時間割の画面に戻り、その帯は出ない', async () => {
     const { router } = openDetail([kugoNotStarted()])
     await cancelAndConfirm()
 

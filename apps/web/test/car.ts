@@ -105,9 +105,15 @@ export function setDeviceClock(dateTime: string) {
 // 車の画面は遅延読み込みで、最初に開くときはカレンダーの部品の読み込みに時間がかかるので、待つ時間を長くとる
 const CALENDAR_WAIT = { timeout: 4000 }
 
-// 月のカレンダー（「2026年10月」など）
-export function monthCalendar(month: string) {
-  return screen.findByRole('region', { name: `${month}のカレンダー` }, CALENDAR_WAIT)
+// 月のカレンダーの画面の月のカレンダー（「2026年10月」など。時間割は出ていない）
+export async function monthCalendar(month: string) {
+  const calendar = await screen.findByRole(
+    'region',
+    { name: `${month}のカレンダー` },
+    CALENDAR_WAIT,
+  )
+  expect(screen.queryByRole('region', { name: /の時間割$/ })).not.toBeInTheDocument()
+  return calendar
 }
 
 // 月のカレンダーの日のボタン（データの属性に日付の見出し「10月7日(水)」を持つ）
@@ -124,7 +130,7 @@ export async function markedDays(month: string): Promise<string[]> {
     .map((b) => b.dataset.dayLabel!)
 }
 
-// 月のカレンダーで日を押す
+// 月のカレンダーで日を押し、その日の時間割の画面へ移るのを待つ
 // （日のボタンは FullCalendar が aria-hidden にする日のセルの上の部分に入るので、役割ではなくデータの属性で探す）
 export async function selectDay(dayLabel: string) {
   const button = await waitFor(() => {
@@ -133,11 +139,21 @@ export async function selectDay(dayLabel: string) {
     return found
   }, CALENDAR_WAIT)
   await userEvent.click(button)
+  await dayView(dayLabel)
 }
 
-// 選んだ日の時間割の帯（日付の見出しで、その日が選ばれていることも確かめる）
-export async function bandsOn(dayLabel: string): Promise<HTMLElement[]> {
+// 日の時間割の画面（見出しがその日で、「月へ戻る」があり、月のカレンダーは出ていない）。時間割を返す
+export async function dayView(dayLabel: string): Promise<HTMLElement> {
   const timeGrid = await screen.findByRole('region', { name: `${dayLabel}の時間割` }, CALENDAR_WAIT)
+  expect(screen.getByRole('heading', { name: dayLabel })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '月へ戻る' })).toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: /のカレンダー$/ })).not.toBeInTheDocument()
+  return timeGrid
+}
+
+// 日の時間割の画面の帯（その日の時間割の画面であることも確かめる）
+export async function bandsOn(dayLabel: string): Promise<HTMLElement[]> {
+  const timeGrid = await dayView(dayLabel)
   // FullCalendar が時間割（日の列）を描き終えてから帯を数える
   await waitFor(() => expect(timeGrid.querySelector('[data-date]')).not.toBeNull())
   return Array.from(timeGrid.querySelectorAll<HTMLElement>('[data-reservation-id]'))

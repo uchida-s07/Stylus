@@ -30,11 +30,6 @@
   cursor: pointer;
 }
 
-.car-day[aria-pressed='true'] {
-  background: var(--mantine-color-blue-light);
-  font-weight: 700;
-}
-
 /* 予約のある日の印 */
 .car-day-dot {
   width: 6px;

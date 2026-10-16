@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { monthMoveTarget, monthStart, monthVisibleRange } from './calendarDates'
+import { isMonthString, monthStart, monthVisibleRange, moveMonth } from './calendarDates'
 
 // 月のカレンダーの日付の求め方（AC ではない確認）
 describe('calendarDates', () => {
@@ -28,18 +28,22 @@ describe('calendarDates', () => {
     expect(monthVisibleRange('2027-01-01')).toEqual({ from: '2026-12-27', to: '2027-02-06' })
   })
 
-  it('前の月・次の月へ移ると、その月の1日を選ぶ', () => {
-    expect(monthMoveTarget('2026-10-20', -1, '2026-10-07')).toBe('2026-09-01')
-    expect(monthMoveTarget('2026-10-20', 1, '2026-10-07')).toBe('2026-11-01')
-  })
-
-  it('今日のある月へ戻ったときは今日を選ぶ', () => {
-    expect(monthMoveTarget('2026-09-01', 1, '2026-10-07')).toBe('2026-10-07')
-    expect(monthMoveTarget('2026-11-01', -1, '2026-10-07')).toBe('2026-10-07')
+  it('前の月・次の月へ移ると、その月（YYYY-MM）になる', () => {
+    expect(moveMonth('2026-10', -1)).toBe('2026-09')
+    expect(moveMonth('2026-10', 1)).toBe('2026-11')
   })
 
   it('12月から1月、1月から12月へ年をまたぐ', () => {
-    expect(monthMoveTarget('2026-12-15', 1, '2026-10-07')).toBe('2027-01-01')
-    expect(monthMoveTarget('2027-01-15', -1, '2026-10-07')).toBe('2026-12-01')
+    expect(moveMonth('2026-12', 1)).toBe('2027-01')
+    expect(moveMonth('2027-01', -1)).toBe('2026-12')
+  })
+
+  it('?month= の月は YYYY-MM で、月は 01〜12', () => {
+    expect(isMonthString('2026-10')).toBe(true)
+    expect(isMonthString('2027-01')).toBe(true)
+    expect(isMonthString('2026-13')).toBe(false)
+    expect(isMonthString('2026-00')).toBe(false)
+    expect(isMonthString('2026-1')).toBe(false)
+    expect(isMonthString('2026-10-01')).toBe(false)
   })
 })
