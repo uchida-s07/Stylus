@@ -1,5 +1,6 @@
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/react/daygrid'
+import interactionPlugin from '@fullcalendar/react/interaction'
 import jaLocale from '@fullcalendar/react/locales/ja'
 import classicThemePlugin from '@fullcalendar/react/themes/classic'
 import timeGridPlugin from '@fullcalendar/react/timegrid'
@@ -21,6 +22,7 @@ import { useNavigate } from 'react-router'
 import { monthMoveTarget, monthStart, monthVisibleRange } from './calendarDates'
 import { carColor } from './carColors'
 import { timeRange } from './format'
+import { timeGridRef } from './timeGridRef'
 import './car-calendar.css'
 
 // 車の画面のカレンダー（CAR-F-005）：上に月のカレンダー、下に選んだ日の時間割
@@ -39,6 +41,7 @@ export function CarCalendar({
   cars,
   reservations,
   onSelectDate,
+  onSelectRange,
 }: {
   // 選んだ日（日本時間の YYYY-MM-DD）
   selectedDate: string
@@ -47,6 +50,8 @@ export function CarCalendar({
   // 月のカレンダーに見えている範囲の予約（API が開始の早い順に返したもの）
   reservations: Reservation[]
   onSelectDate: (date: string) => void
+  // 時間割で範囲を選んだ（開始・終了の日時）
+  onSelectRange: (start: Date, end: Date) => void
 }) {
   const month = monthStart(selectedDate)
   return (
@@ -63,6 +68,7 @@ export function CarCalendar({
         date={selectedDate}
         cars={cars}
         reservations={reservations}
+        onSelectRange={onSelectRange}
       />
     </Stack>
   )
@@ -180,10 +186,12 @@ function DayTimeGrid({
   date,
   cars,
   reservations,
+  onSelectRange,
 }: {
   date: string
   cars: CarListItem[]
   reservations: Reservation[]
+  onSelectRange: (start: Date, end: Date) => void
 }) {
   const navigate = useNavigate()
   const label = formatJstDate(jstStartOfDay(date)!)
@@ -196,8 +204,12 @@ function DayTimeGrid({
       </Title>
       <FullCalendar
         {...COMMON_OPTIONS}
-        plugins={[timeGridPlugin, classicThemePlugin]}
+        ref={timeGridRef}
+        plugins={[timeGridPlugin, interactionPlugin, classicThemePlugin]}
         initialView="timeGridDay"
+        // 範囲を選べる（マウスはドラッグ、タッチは長押ししてから引く。FullCalendar の標準）
+        selectable
+        select={(info) => onSelectRange(info.start, info.end)}
         initialDate={date}
         height={480}
         dayHeaders={false}

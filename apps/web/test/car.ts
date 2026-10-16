@@ -6,9 +6,10 @@ import type {
   ReservationDetail,
   ReservationListResponse,
 } from '@stylus/shared'
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, vi } from 'vitest'
+import { timeGridRef } from '../src/pages/car/timeGridRef'
 import { installFakeApi, json, meRoute } from './fakeApi'
 import { FAMILY, meOf, type FamilyKey } from './money'
 
@@ -150,4 +151,10 @@ export async function fillDateTime(which: '開始' | '終了', date: string, tim
   if (date) await userEvent.type(dateInput, date)
   await userEvent.clear(timeInput)
   if (time) await userEvent.type(timeInput, time)
+}
+
+// 時間割で範囲を選ぶ（日本時間の「YYYY-MM-DD HH:MM」。jsdom ではドラッグできないので FullCalendar の select を呼ぶ）
+export async function selectRange(from: string, to: string) {
+  await waitFor(() => expect(timeGridRef.current).not.toBeNull(), CALENDAR_WAIT)
+  act(() => timeGridRef.current!.getApi().select(jstIso(from), jstIso(to)))
 }

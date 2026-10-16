@@ -137,12 +137,13 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
   - 結果: 2026-10-16。予約の入力の画面は作った予約（POST の応答）、直す画面は直した後の予約（PATCH の応答）の開始の日で `/car?date=<日>` へ戻る。AC-26 は車の画面の「予約する」から入る形で確かめる。テスト全体（639件）・lint・型の検査が通った。リファクタで直すところは無かったので、2回目の全体の実行はしていない
 
-- [ ] T-11: 時間割で範囲を選んで予約を入れる
+- [x] T-11: 時間割で範囲を選んで予約を入れる
   - 対応: CAR-F-004 / AC-21, AC-22, AC-24, AC-27
   - 対象ファイル: `apps/web/src/pages/car/CarCalendar.tsx`（範囲を選べるようにし、選んだら知らせる）、`apps/web/src/pages/car/ReservationDialog.tsx`（幅 768px 以上は `Modal`、未満は `Drawer`。中身は `ReservationForm`）、`apps/web/src/pages/car/useCreateReservation.ts`（予約の入力の画面から送る処理を切り出して共用。`requestId` は入力を開くたびに作る）、`apps/web/src/pages/car/ReservationNewPage.tsx`、`apps/web/src/pages/car/CarPage.tsx`、`apps/web/src/pages/car/car-select.test.tsx`
   - 内容: 範囲を選ぶと、開始・終了の日付と時刻が入った入力が出る（車は「使う」の車が1台だけなら選んでおく）。「使う」の車が無いときは入力を出さず「先に車を登録してください」と車の管理への入口を出し、選んだ範囲を消す。保存できたら入力を閉じ、予約の開始の日を選んで（`?date=` を置き換える）カレンダーを読み直す。タグなし：入力で開始の日付を直して保存すると、その日へ移る
-  - Red: 未記録（想定：T-10 の画面で、FullCalendar の `select` を起こしても入力が出ない（AC-21・AC-22・AC-27）、「先に車を登録してください」が出ない（AC-24））
+  - Red: 2026-10-16 実行。T-10 の画面に、テストから範囲の選択を起こす口（`timeGridRef`）と範囲を選べる設定（`selectable`）だけを足した形で走らせ、AC-21・AC-22・AC-27 とタグなしの「10月12日へ移る」は FullCalendar の `select` を起こしても入力が出ない（`Unable to find role="dialog" and name "予約する"`）、AC-24 は「先に車を登録してください」が出ない（`Unable to find an element with the text: 先に車を登録してください`）で失敗した
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
+  - 結果: 2026-10-16。時間割に `selectable`（操作の部品 `interaction` を足した）と `select` を付け、`CarPage` が開始・終了の入った `ReservationDialog`（幅 768px 以上は `Modal`、未満は `Drawer`。`useMediaQuery`）を出す。入力は開くたびに key と `requestId` を作り直す。送る処理は `useCreateReservation` に切り出し、予約の入力の画面と共用する。「使う」の車が無いときは入力を出さず、選んだ範囲を消して `NoCars`（「先に車を登録してください」）を出す。保存できたら入力を閉じ、選んだ範囲を消し、予約の開始の日を選んで読み直す。テストから FullCalendar に届く口は `timeGridRef.ts`（時間割の ref。範囲の選択を消すのにも使う）にし、`test/car.ts` の `selectRange` が `getApi().select()` を呼ぶ。外側を押しても閉じない設定と「キャンセル」・「戻る」は T-12 で足す。テストは車の画面の表示と入力の操作を含むので上限を 10 秒にした。AC-27 のテストは、読み直しが終わって帯が出るまで待つ。テスト全体（644件）・lint・型の検査が通った。リファクタで直すところは無かったので、2回目の全体の実行はしていない
 
 - [ ] T-12: 範囲から出た入力を閉じる・残す
   - 対応: CAR-F-004 / AC-23, AC-25, AC-28, AC-29
