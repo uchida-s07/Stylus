@@ -131,6 +131,12 @@ describe('予約の入力の画面（CAR-F-004）', () => {
     LONG_TEST,
   )
 
+  it('予約の入力の画面には「キャンセル」が出ない', async () => {
+    openNewReservation()
+    await screen.findByLabelText('車')
+    expect(screen.queryByRole('button', { name: 'キャンセル' })).not.toBeInTheDocument()
+  })
+
   it('[CAR-F-004/AC-7] 終了日時を空にして「予約する」を押すと、予約は送られず、終了日時に「入力してください」と出る', async () => {
     const { requests } = openNewReservation()
     await fillNoahPeriod()

@@ -210,6 +210,8 @@ function DayTimeGrid({
         // 範囲を選べる（マウスはドラッグ、タッチは長押ししてから引く。FullCalendar の標準）
         selectable
         select={(info) => onSelectRange(info.start, info.end)}
+        // 選んでいる範囲（テストは選んだ範囲が残っているかをこのクラスで確かめる）
+        highlightClass="car-selection"
         initialDate={date}
         height={480}
         dayHeaders={false}

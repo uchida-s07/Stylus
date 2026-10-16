@@ -1,10 +1,11 @@
 import type { ReservationInput } from '@stylus/shared'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   bandsOn,
   CAR_IDS,
+  carError,
   carItem,
   carList,
   fillDateTime,
@@ -27,11 +28,16 @@ const LONG_TEST = 10_000
 // 車の画面を開く。POST で作った予約は、その後の一覧に出る
 function openCarPage(
   path: string,
-  options: { cars?: ReturnType<typeof carList>; list?: ReturnType<typeof reservation>[] } = {},
+  options: {
+    cars?: ReturnType<typeof carList>
+    list?: ReturnType<typeof reservation>[]
+    failPost?: boolean
+  } = {},
 ) {
-  const { cars = carList(carItem('ノア')), list = [] } = options
+  const { cars = carList(carItem('ノア')), list = [], failPost = false } = options
   const created: ReturnType<typeof reservation>[] = []
   const post: Handler = async (request) => {
+    if (failPost) return carError(500, 'internal')()
     const body = (await request.clone().json()) as ReservationInput
     const car = cars.cars.find((c) => c.id === body.carId)!
     const r = {
@@ -56,6 +62,18 @@ async function reservationDialog() {
 }
 
 const postsOf = (requests: Request[]) => requests.filter((r) => r.method === 'POST')
+
+// 時間割に選んだ範囲が残っているか
+const hasSelection = () => document.querySelector('.car-selection') !== null
+
+// 10月10日の時間割で 9:00〜12:00 を選んで入力を出し、行き先「大学」を入れる
+async function selectAndTypeDestination() {
+  await bandsOn('10月10日(土)')
+  await selectRange('2026-10-10 09:00', '2026-10-10 12:00')
+  const dialog = await reservationDialog()
+  await userEvent.type(within(dialog).getByLabelText('行き先'), '大学')
+  return dialog
+}
 
 describe('時間割で範囲を選んで予約を入れる（CAR-F-004）', () => {
   beforeEach(() => {
@@ -149,7 +167,127 @@ describe('時間割で範囲を選んで予約を入れる（CAR-F-004）', () =
     LONG_TEST,
   )
 
+  it(
+    '[CAR-F-004/AC-23] 時間割で 9:00〜12:00 を選んで出た入力で「キャンセル」を押すと、入力が閉じ、予約は作られず、選んだ範囲が残らない',
+    async () => {
+      const { requests } = openCarPage('/car?date=2026-10-10')
+      await bandsOn('10月10日(土)')
+      await selectRange('2026-10-10 09:00', '2026-10-10 12:00')
+      const dialog = await reservationDialog()
+      expect(hasSelection()).toBe(true)
+      await userEvent.click(within(dialog).getByRole('button', { name: 'キャンセル' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(hasSelection()).toBe(false)
+      expect(postsOf(requests)).toHaveLength(0)
+    },
+    LONG_TEST,
+  )
+
+  it(
+    '[CAR-F-004/AC-25] 範囲から出た入力で行き先「大学」を入れ、予約の API が 500 を返す中で「予約する」を押すと、入力は閉じず「保存できませんでした。…」と出て、行き先「大学」が残っている',
+    async () => {
+      const { router } = openCarPage('/car?date=2026-10-10', { failPost: true })
+      const dialog = await selectAndTypeDestination()
+      await userEvent.click(within(dialog).getByRole('button', { name: '予約する' }))
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+        '保存できませんでした。時間をおいてもう一度お試しください。',
+      )
+      // 閉じる処理（履歴を戻す）は後から動くので、少し待ってから入力が残っていることを確かめる
+      await act(() => new Promise((resolve) => setTimeout(resolve, 200)))
+      expect(router.state.location.state).toHaveProperty('reservationDialog')
+      const stillOpen = screen.getByRole('dialog', { name: '予約する' })
+      expect(within(stillOpen).getByLabelText('行き先')).toHaveValue('大学')
+    },
+    LONG_TEST,
+  )
+
+  it(
+    '[CAR-F-004/AC-28] 範囲から出た入力で行き先「大学」を入れ、入力の外側を押しても、入力は閉じず、行き先「大学」が残っている',
+    async () => {
+      const { router } = openCarPage('/car?date=2026-10-10')
+      await selectAndTypeDestination()
+      const overlay = document.querySelector<HTMLElement>('.mantine-Drawer-overlay')!
+      await userEvent.click(overlay)
+
+      // 閉じる処理（履歴を戻す）は後から動くので、少し待ってから入力が残っていることを確かめる
+      await act(() => new Promise((resolve) => setTimeout(resolve, 200)))
+      expect(router.state.location.state).toHaveProperty('reservationDialog')
+      const dialog = screen.getByRole('dialog', { name: '予約する' })
+      expect(within(dialog).getByLabelText('行き先')).toHaveValue('大学')
+    },
+    LONG_TEST,
+  )
+
+  it(
+    '[CAR-F-004/AC-29] 範囲から出た入力で行き先「大学」を入れ、端末の「戻る」操作をすると、入力が閉じ、予約は作られず、車の画面の10月10日の時間割が出ている',
+    async () => {
+      const { requests, router } = openCarPage('/car?date=2026-10-10')
+      await selectAndTypeDestination()
+      await act(() => router.navigate(-1))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(await bandsOn('10月10日(土)')).toEqual([])
+      expect(router.state.location.pathname).toBe('/car')
+      expect(router.state.location.search).toBe('?date=2026-10-10')
+      expect(hasSelection()).toBe(false)
+      expect(postsOf(requests)).toHaveLength(0)
+    },
+    LONG_TEST,
+  )
+
   // AC ではない確認
+  it(
+    '✕と Esc は「キャンセル」と同じく、入力を閉じて選んだ範囲を消す。保存の後とキャンセルの後は、積んだ履歴を戻す',
+    async () => {
+      const { router } = openCarPage('/car?date=2026-10-10')
+      await bandsOn('10月10日(土)')
+      await selectRange('2026-10-10 09:00', '2026-10-10 12:00')
+      const dialog = await reservationDialog()
+      await userEvent.click(within(dialog).getByRole('button', { name: '閉じる' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(hasSelection()).toBe(false)
+
+      await selectRange('2026-10-10 13:00', '2026-10-10 14:00')
+      await reservationDialog()
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(hasSelection()).toBe(false)
+      // 入力を開いたときに積んだ履歴（入力の印を持つ）は戻してある
+      expect(router.state.location.search).toBe('?date=2026-10-10')
+      expect(router.state.location.state).toBeNull()
+    },
+    LONG_TEST,
+  )
+
+  it(
+    '入力を開き直すと requestId が変わる',
+    async () => {
+      const { requests } = openCarPage('/car?date=2026-10-10', { failPost: true })
+      await bandsOn('10月10日(土)')
+      for (const [from, to] of [
+        ['09:00', '10:00'],
+        ['13:00', '14:00'],
+      ]) {
+        await selectRange(`2026-10-10 ${from}`, `2026-10-10 ${to}`)
+        const dialog = await reservationDialog()
+        await userEvent.click(within(dialog).getByRole('button', { name: '予約する' }))
+        await within(dialog).findByRole('alert')
+        await userEvent.click(within(dialog).getByRole('button', { name: 'キャンセル' }))
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      }
+      const ids = await Promise.all(
+        postsOf(requests).map(
+          async (r) => ((await r.clone().json()) as ReservationInput).requestId,
+        ),
+      )
+      expect(ids).toHaveLength(2)
+      expect(ids[0]).not.toBe(ids[1])
+    },
+    LONG_TEST,
+  )
+
   it(
     '入力で開始・終了の日付を10月12日に直して保存すると、10月12日へ移る',
     async () => {

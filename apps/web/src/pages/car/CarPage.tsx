@@ -11,8 +11,8 @@ import {
   Stack,
   Title,
 } from '@mantine/core'
-import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
 import { callApi } from '../../api/responses'
 import { ErrorScreen } from '../../components/ErrorScreen'
@@ -33,8 +33,16 @@ export function CarPage() {
   const dateParam = searchParams.get('date')
   const selectedDate = dateParam && isDateString(dateParam) ? dateParam : toJstDate(new Date())
   const range = monthVisibleRange(selectedDate)
+  const location = useLocation()
+  const navigate = useNavigate()
   // 時間割で範囲を選んで出した予約の入力（開くたびに key と requestId を作り直す）
+  // 開くときに履歴を1つ積み（入力の印 reservationDialog を持つ）、その履歴にいる間だけ出す
+  // 端末の「戻る」・「キャンセル」・保存は、どれも積んだ履歴を戻して閉じる（車の画面からは離れない）
   const [dialog, setDialog] = useState<{ key: string; initial: ReservationFormValues }>()
+  const dialogKey = (location.state as { reservationDialog?: string } | null)?.reservationDialog
+  const dialogOpen = dialog !== undefined && dialog.key === dialogKey
+  // 保存した予約の開始の日（入力の履歴を戻した後に選ぶ）
+  const dateAfterClose = useRef<string>(undefined)
   // 範囲を選んだが「使う」の車が無い（CAR-F-004/AC-24）
   const [noActiveCars, setNoActiveCars] = useState(false)
   const { state, reload } = useApiLoad(
@@ -61,8 +69,10 @@ export function CarPage() {
     setNoActiveCars(false)
     const s = toDateTimeFields(start.toISOString())
     const e = toDateTimeFields(end.toISOString())
+    const key = crypto.randomUUID()
+    void navigate({ search: location.search }, { state: { reservationDialog: key } })
     setDialog({
-      key: crypto.randomUUID(),
+      key,
       initial: {
         carId: activeCars.length === 1 ? activeCars[0]!.id : '',
         startDate: s.date,
@@ -75,17 +85,27 @@ export function CarPage() {
     })
   }
 
+  // 入力を閉じる：積んだ履歴を戻す（戻った後の片付けは下の useEffect）
   function closeDialog() {
-    setDialog(undefined)
-    timeGridRef.current?.getApi().unselect()
+    void navigate(-1)
   }
 
   // 保存できたら入力を閉じ、予約の開始の日を選んで読み直す
   function created(r: Reservation) {
+    dateAfterClose.current = toJstDate(new Date(r.startsAt))
     closeDialog()
-    selectDate(toJstDate(new Date(r.startsAt)))
-    reload()
   }
+
+  // 入力の履歴から離れた（「戻る」・「キャンセル」・保存）：選んだ範囲を消し、保存したならその日を選んで読み直す
+  useEffect(() => {
+    if (dialogKey !== undefined) return
+    timeGridRef.current?.getApi().unselect()
+    const date = dateAfterClose.current
+    if (date === undefined) return
+    dateAfterClose.current = undefined
+    setSearchParams({ date }, { replace: true })
+    reload()
+  }, [dialogKey, setSearchParams, reload])
 
   if (state.kind === 'error') return <ErrorScreen kind={state.error} />
   return (
@@ -121,7 +141,7 @@ export function CarPage() {
             />
           </>
         )}
-        {dialog && (
+        {dialogOpen && (
           <ReservationDialog
             key={dialog.key}
             initial={dialog.initial}

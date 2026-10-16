@@ -30,14 +30,23 @@ export function ReservationDialog({
       carAndStartEditable
       submitLabel="予約する"
       send={send}
+      onCancel={onClose}
     />
   )
+  // 外側を押しても閉じない（入れた内容が不意に消えないように）。✕・Esc は「キャンセル」と同じ
+  const common = {
+    opened: true,
+    onClose,
+    title: '予約する',
+    closeOnClickOutside: false,
+    closeButtonProps: { 'aria-label': '閉じる' },
+  }
   return wide ? (
-    <Modal opened onClose={onClose} title="予約する" centered>
+    <Modal {...common} centered>
       {form}
     </Modal>
   ) : (
-    <Drawer opened onClose={onClose} title="予約する" position="bottom" size="auto">
+    <Drawer {...common} position="bottom" size="auto">
       {form}
     </Drawer>
   )
