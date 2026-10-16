@@ -21,6 +21,9 @@ import { renderApp } from '../../../test/render'
 
 type Handler = Parameters<typeof installCarApi>[0][string]
 
+// 入力の操作と、車の画面（遅延読み込み）の表示の両方を含むテストは長めに待つ
+const LONG_TEST = 10_000
+
 // くうごの「ノア」10月10日 9:00〜12:00（版 1）
 const kugoReservation = (overrides: Partial<Parameters<typeof reservationDetail>[0]> = {}) =>
   reservationDetail({
@@ -259,27 +262,60 @@ describe('予約を直す画面（CAR-F-006）', () => {
     )
   })
 
-  it('[CAR-F-006/AC-21] 「使わない」の「ノア」の予約は、車の選択肢に「ノア」が出て選ばれたまま、終了を 13:00 に直して保存できる', async () => {
-    const r = kugoReservation({ carActive: false })
-    const { requests, router } = openEdit([r], {
-      cars: carList(carItem('BMW'), carItem('ノア', { isActive: false })),
-    })
-    const select = await screen.findByLabelText('車')
-    expect(select).toHaveValue(CAR_IDS.ノア)
-    expect(
-      within(select)
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual(['選んでください', 'BMW', 'ノア（使わない）'])
-    await fillDateTime('終了', '2026-10-10', '13:00')
-    await save()
+  it(
+    '[CAR-F-006/AC-21] 「使わない」の「ノア」の予約は、車の選択肢に「ノア」が出て選ばれたまま、終了を 13:00 に直して保存でき、10月10日の時間割に 9:00〜13:00 の帯が出る',
+    async () => {
+      const r = kugoReservation({ carActive: false })
+      const saved = kugoReservation({ carActive: false, to: '2026-10-10 13:00', version: 2 })
+      const { requests, router } = openEdit([r], {
+        cars: carList(carItem('BMW'), carItem('ノア', { isActive: false })),
+        patch: () => json(saved),
+        list: [saved],
+      })
+      const select = await screen.findByLabelText('車')
+      expect(select).toHaveValue(CAR_IDS.ノア)
+      expect(
+        within(select)
+          .getAllByRole('option')
+          .map((o) => o.textContent),
+      ).toEqual(['選んでください', 'BMW', 'ノア（使わない）'])
+      await fillDateTime('終了', '2026-10-10', '13:00')
+      await save()
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/car'))
-    expect(await patchesOf(requests)[0]!.clone().json()).toMatchObject({
-      carId: CAR_IDS.ノア,
-      startsAt: jstIso('2026-10-10 09:00'),
-      endsAt: jstIso('2026-10-10 13:00'),
-      version: 1,
-    })
-  })
+      const [band, ...rest] = await bandsOn('10月10日(土)')
+      expect(rest).toEqual([])
+      expect(band).toHaveTextContent('9:00〜13:00')
+      expect(router.state.location.search).toBe('?date=2026-10-10')
+      expect(await patchesOf(requests)[0]!.clone().json()).toMatchObject({
+        carId: CAR_IDS.ノア,
+        startsAt: jstIso('2026-10-10 09:00'),
+        endsAt: jstIso('2026-10-10 13:00'),
+        version: 1,
+      })
+    },
+    LONG_TEST,
+  )
+
+  it(
+    '[CAR-F-005/AC-14] くうごが開始を 10月12日 9:00・終了を 10月12日 12:00 に直して保存すると、車の画面に戻り、10月12日が選ばれていて、時間割に 9:00〜12:00 の帯が出る',
+    async () => {
+      const saved = kugoReservation({
+        from: '2026-10-12 09:00',
+        to: '2026-10-12 12:00',
+        version: 2,
+      })
+      const { router } = openEdit([kugoReservation()], { patch: () => json(saved), list: [saved] })
+      await screen.findByLabelText('開始の日付')
+      await fillDateTime('開始', '2026-10-12', '09:00')
+      await fillDateTime('終了', '2026-10-12', '12:00')
+      await save()
+
+      const [band, ...rest] = await bandsOn('10月12日(月)')
+      expect(rest).toEqual([])
+      expect(band).toHaveTextContent('9:00〜12:00')
+      expect(router.state.location.pathname).toBe('/car')
+      expect(router.state.location.search).toBe('?date=2026-10-12')
+    },
+    LONG_TEST,
+  )
 })

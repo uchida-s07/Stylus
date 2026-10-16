@@ -1,4 +1,4 @@
-import { createReservationInputSchema, type ReservationInput } from '@stylus/shared'
+import { createReservationInputSchema, toJstDate, type ReservationInput } from '@stylus/shared'
 import { Anchor, Container, Group, Stack, Title } from '@mantine/core'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
@@ -49,7 +49,8 @@ export function ReservationNewPage() {
     const json = body as ReservationInput
     const result = await callApi(() => api['car-reservations'].$post({ json }))
     if (result.kind === 'ok') {
-      void navigate('/car')
+      // 予約の開始の日を選んだ車の画面へ（CAR-F-004）
+      void navigate(`/car?date=${toJstDate(new Date(result.data.startsAt))}`)
       return { kind: 'ok' }
     }
     if (result.kind === 'unregistered') {
