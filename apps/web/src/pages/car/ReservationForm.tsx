@@ -14,6 +14,7 @@ export function ReservationForm({
   carAndStartEditable,
   submitLabel,
   send,
+  onCancel,
 }: {
   initial: ReservationFormValues
   // 車の選択肢（予約の入力では「使う」の車だけ）
@@ -23,6 +24,8 @@ export function ReservationForm({
   submitLabel: string
   // 入力の検証と送信。検証に通らなければ項目ごとの知らせを返す
   send: (values: ReservationFormValues) => Promise<ReservationSendResult>
+  // 「キャンセル」を出すときに渡す（時間割から出た入力。入力の画面では出さない）
+  onCancel?: () => void
 }) {
   const [values, setValues] = useState(initial)
   const [errors, setErrors] = useState<ReservationFieldErrors>({})
@@ -127,9 +130,20 @@ export function ReservationForm({
           onChange={(e) => set('memo')(e.currentTarget.value)}
           error={errors.memo}
         />
-        <Button type="submit" loading={submitting}>
-          {submitLabel}
-        </Button>
+        {onCancel ? (
+          <Group grow>
+            <Button variant="default" onClick={onCancel}>
+              キャンセル
+            </Button>
+            <Button type="submit" loading={submitting}>
+              {submitLabel}
+            </Button>
+          </Group>
+        ) : (
+          <Button type="submit" loading={submitting}>
+            {submitLabel}
+          </Button>
+        )}
       </Stack>
     </form>
   )

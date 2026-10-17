@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  bandsOn,
   CAR_IDS,
   carError,
   carItem,
@@ -10,6 +11,7 @@ import {
   fillDateTime,
   installCarApi,
   jstIso,
+  dayView,
   reservation,
   reservationList,
   setDeviceClock,
@@ -20,6 +22,9 @@ import { deferred, signIn } from '../../../test/money'
 import { renderApp } from '../../../test/render'
 
 type Handler = Parameters<typeof installCarApi>[0][string]
+
+// 入力の操作と、車の画面（遅延読み込み）の表示の両方を含むテストは長めに待つ
+const LONG_TEST = 10_000
 
 // 予約の入力を開く（車の一覧と POST の応答を差し替えられる）
 function openNewReservation(
@@ -76,30 +81,60 @@ describe('予約の入力の画面（CAR-F-004）', () => {
     vi.useRealTimers()
   })
 
-  it('[CAR-F-004/AC-1] くうごが「ノア」・10月10日 9:00〜12:00・行き先「大学」で予約すると、予約が送られ、車の画面の「10月10日(土)」の下に出る', async () => {
+  it('[CAR-F-004/AC-1] くうごが「ノア」・10月10日 9:00〜12:00・行き先「大学」で予約すると、その中身で予約が送られ、10月10日の時間割の画面に戻る', async () => {
     const created = reservation({
       from: '2026-10-10 09:00',
       to: '2026-10-10 12:00',
       destination: '大学',
     })
-    const { requests, router } = openNewReservation({
-      post: () => json(created, 201),
-      extra: { 'GET /car-reservations': () => json(reservationList([created])) },
-    })
+    const { requests, router } = openNewReservation({ post: () => json(created, 201) })
     await fillNoahPeriod()
     await userEvent.type(screen.getByLabelText('行き先'), '大学')
     await submitReservation()
 
-    const oct10 = await screen.findByRole('region', { name: '10月10日(土)' })
-    expect(within(oct10).getByRole('link')).toHaveTextContent(/ノア.*くうご.*9:00〜12:00.*大学/)
+    // 帯が出ることは車の画面のテスト（母が10日をタップする）で確かめる
+    expect(await dayView('10月10日(土)')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/car')
-    const [post] = postsOf(requests)
-    expect(await post!.clone().json()).toMatchObject({
+    const posts = postsOf(requests)
+    expect(posts).toHaveLength(1)
+    expect(await posts[0]!.clone().json()).toMatchObject({
       carId: CAR_IDS.ノア,
       startsAt: jstIso('2026-10-10 09:00'),
       endsAt: jstIso('2026-10-10 12:00'),
       destination: '大学',
     } satisfies Partial<ReservationInput>)
+  })
+
+  it(
+    '[CAR-F-004/AC-26] くうごが車の画面の「予約する」から「ノア」を 10月10日 9:00〜12:00 で予約すると、10月10日の時間割の画面に戻り、その帯が出る',
+    async () => {
+      const created = reservation({ from: '2026-10-10 09:00', to: '2026-10-10 12:00' })
+      let posted = false
+      installCarApi({
+        'GET /cars': () => json(carList(carItem('BMW'), carItem('ノア'))),
+        'POST /car-reservations': () => {
+          posted = true
+          return json(created, 201)
+        },
+        'GET /car-reservations': () => json(reservationList(posted ? [created] : [])),
+      })
+      const { router } = renderApp('/car')
+      await userEvent.click(await screen.findByRole('link', { name: '予約する' }))
+      await fillNoahPeriod()
+      await submitReservation()
+
+      const bands = await bandsOn('10月10日(土)')
+      expect(bands.map((b) => b.dataset.reservationId)).toEqual([created.id])
+      expect(router.state.location.pathname).toBe('/car')
+      expect(router.state.location.search).toBe('?date=2026-10-10')
+    },
+    LONG_TEST,
+  )
+
+  it('予約の入力の画面には「キャンセル」が出ない', async () => {
+    openNewReservation()
+    await screen.findByLabelText('車')
+    expect(screen.queryByRole('button', { name: 'キャンセル' })).not.toBeInTheDocument()
   })
 
   it('[CAR-F-004/AC-7] 終了日時を空にして「予約する」を押すと、予約は送られず、終了日時に「入力してください」と出る', async () => {
@@ -295,7 +330,7 @@ describe('予約の入力の画面：送った後の知らせ（CAR-F-004）', (
         return carError(
           409,
           'already_registered',
-          'この予約はすでに登録されています。予定で確かめて、必要なら直してください。',
+          'この予約はすでに登録されています。車の画面で確かめて、必要なら直してください。',
         )()
       },
     })
@@ -309,7 +344,7 @@ describe('予約の入力の画面：送った後の知らせ（CAR-F-004）', (
 
     expect(
       await screen.findByText(
-        'この予約はすでに登録されています。予定で確かめて、必要なら直してください。',
+        'この予約はすでに登録されています。車の画面で確かめて、必要なら直してください。',
       ),
     ).toBeInTheDocument()
     const bodies = await Promise.all(postsOf(requests).map((r) => r.clone().json()))

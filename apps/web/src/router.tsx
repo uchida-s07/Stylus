@@ -3,8 +3,8 @@ import { RedirectIfSignedIn, RequireSignedIn } from './auth/guards'
 import { RouteError } from './components/RouteError'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { CarHistoryPage } from './pages/car/CarHistoryPage'
-import { CarPage } from './pages/car/CarPage'
 import { CarsPage } from './pages/car/CarsPage'
+import { LazyCarPage } from './pages/car/LazyCarPage'
 import { ReservationDetailPage } from './pages/car/ReservationDetailPage'
 import { ReservationEditPage } from './pages/car/ReservationEditPage'
 import { ReservationNewPage } from './pages/car/ReservationNewPage'
@@ -37,7 +37,7 @@ export const routes: RouteObject[] = [
           { path: '/money/settle', element: <SettlePage /> },
           { path: '/money/settlements/:id', element: <SettlementDetailPage /> },
           { path: '/money/categories', element: <CategoriesPage /> },
-          { path: '/car', element: <CarPage /> },
+          { path: '/car', element: <LazyCarPage /> },
           { path: '/car/history', element: <CarHistoryPage /> },
           { path: '/car/cars', element: <CarsPage /> },
           { path: '/car/reservations/new', element: <ReservationNewPage /> },

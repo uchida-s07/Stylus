@@ -10,7 +10,8 @@ export type LoadState<T> =
 
 // 画面を開いたときの読み込み。未登録ならログイン画面へ、失敗なら知らせの種類を返す
 // reload で読み直す（409 を受けて最新を出すときなど）
-export function useApiLoad<T>(load: () => Promise<ApiResult<T>>) {
+// key が変わったときも読み直す（車の画面で月を移ったときなど）。読み終わるまでは前の結果を出したままにする
+export function useApiLoad<T>(load: () => Promise<ApiResult<T>>, key?: string) {
   const [state, setState] = useState<LoadState<T>>({ kind: 'loading' })
   const [round, setRound] = useState(0)
   const leaveAsUnregistered = useLeaveAsUnregistered()
@@ -31,9 +32,9 @@ export function useApiLoad<T>(load: () => Promise<ApiResult<T>>) {
     return () => {
       active = false
     }
-    // load は画面ごとに変わらない読み込み（round が変わったときだけ読み直す）
+    // load は画面ごとに変わらない読み込み（round か key が変わったときだけ読み直す）
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [round, leaveAsUnregistered])
+  }, [round, key, leaveAsUnregistered])
 
   const reload = useCallback(() => setRound((r) => r + 1), [])
   return { state, reload }

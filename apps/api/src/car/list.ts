@@ -1,12 +1,14 @@
 import {
+  addDays,
   CAR_MESSAGES,
   HISTORY_PAGE_SIZE,
+  jstStartOfDay,
   toHistoryCursor,
   type Reservation,
   type ReservationDetail,
   type ReservationListResponse,
 } from '@stylus/shared'
-import { and, asc, desc, eq, gt, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, lt, lte, sql } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { carReservations, cars, members } from '../db/schema'
 import type { Member } from '../env'
@@ -55,6 +57,18 @@ export function toReservationDetail(row: ReservationRow, memberId: string): Rese
 export async function listUpcoming(db: Db, now: Date): Promise<Reservation[]> {
   const rows = await selectReservationRows(db)
     .where(gt(carReservations.endsAt, now))
+    .orderBy(asc(carReservations.startsAt), asc(cars.name), asc(carReservations.id))
+  return rows.map(toReservation)
+}
+
+// 期間で引く予約（車の画面のカレンダー。CAR-F-005、spec 004）：日本時間の from の 0:00 から to の翌日 0:00 までに
+// 一部でもかかる予約を、終わった・使用中・まだ始まっていないを区別せずに、開始の早い順（同じなら車の名前の順）ですべて
+// from・to は reservationListQuerySchema が実在する日付で 42 日までと確かめている
+export async function listRange(db: Db, from: string, to: string): Promise<Reservation[]> {
+  const start = jstStartOfDay(from)!
+  const end = jstStartOfDay(addDays(to, 1))!
+  const rows = await selectReservationRows(db)
+    .where(and(lt(carReservations.startsAt, end), gt(carReservations.endsAt, start)))
     .orderBy(asc(carReservations.startsAt), asc(cars.name), asc(carReservations.id))
   return rows.map(toReservation)
 }

@@ -43,3 +43,40 @@ export function fromJstDateTime(date: string, time: string): Date | null {
   if (Number.isNaN(clock.getTime()) || clock.toISOString().slice(0, 10) !== date) return null
   return new Date(clock.getTime() - JST_OFFSET_MS)
 }
+
+// ---- 日付（YYYY-MM-DD）の部品（spec 004：期間で引く予約・カレンダー） ----
+// 日付は暦の上の値なので、UTC の 0:00 に置いて足し引きする（時間帯に左右されない）
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function dateAtUtcMidnight(date: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null
+  const d = new Date(`${date}T00:00:00.000Z`)
+  // 2026-02-30 のような存在しない日付は、繰り上がって別の日付になる
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== date) return null
+  return d
+}
+
+// 実在する日付（YYYY-MM-DD）か
+export function isDateString(value: string): boolean {
+  return dateAtUtcMidnight(value) !== null
+}
+
+// 日本時間のその日の 0:00 の日時。形が違えば null
+export function jstStartOfDay(date: string): Date | null {
+  return fromJstDateTime(date, '00:00')
+}
+
+// 日付に日数を足す（負なら引く）。date は実在する日付であること
+export function addDays(date: string, days: number): string {
+  const d = dateAtUtcMidnight(date)
+  if (!d) throw new Error(`日付の形が違う: ${date}`)
+  return new Date(d.getTime() + days * DAY_MS).toISOString().slice(0, 10)
+}
+
+// 2つの日付の間の日数（to − from）。どちらも実在する日付であること
+export function diffDays(from: string, to: string): number {
+  const f = dateAtUtcMidnight(from)
+  const t = dateAtUtcMidnight(to)
+  if (!f || !t) throw new Error(`日付の形が違う: ${from}, ${to}`)
+  return Math.round((t.getTime() - f.getTime()) / DAY_MS)
+}

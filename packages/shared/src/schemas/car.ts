@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { diffDays, isDateString } from '../date'
 import { charCount, trimBlank } from './money'
 
 // ---- 車（spec 003） ----
@@ -16,7 +17,8 @@ export const CAR_MESSAGES = {
   carUnavailable: 'この車は今は予約できません。選び直してください',
   carInUse: 'この車には予約があるため削除できません。使わないにしてください。',
   reservationNotFound: 'この予約は見つかりません。',
-  alreadyRegistered: 'この予約はすでに登録されています。予定で確かめて、必要なら直してください。',
+  alreadyRegistered:
+    'この予約はすでに登録されています。車の画面で確かめて、必要なら直してください。',
   changed: '予約の中身が変わりました。もう一度確かめてください。',
   started: 'この予約はもう始まっています。もう一度開いてください。',
   ended: 'この予約はもう終わっているため直せません。',
@@ -170,11 +172,37 @@ export function toHistoryCursor(endsAt: string, id: string): string {
   return `${new Date(endsAt).toISOString()}_${id}`
 }
 
+// 期間で引くときの日数の上限（両端を含む。月のカレンダーの6週分。spec 004）
+export const RANGE_MAX_DAYS = 42
+
+const dateStringSchema = z.string().refine(isDateString, '日付の形が違います')
+
 // GET /car-reservations?view=upcoming|past&before=<カーソル>
-export const reservationListQuerySchema = z.object({
-  view: z.enum(['upcoming', 'past']).default('upcoming'),
-  before: cursorSchema.optional(),
-})
+// GET /car-reservations?view=range&from=YYYY-MM-DD&to=YYYY-MM-DD（日本時間の日付。spec 004）
+export const reservationListQuerySchema = z
+  .object({
+    view: z.enum(['upcoming', 'past', 'range']).default('upcoming'),
+    before: cursorSchema.optional(),
+    from: dateStringSchema.optional(),
+    to: dateStringSchema.optional(),
+  })
+  .superRefine((q, ctx) => {
+    if (q.view !== 'range') return
+    if (q.from === undefined || q.to === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['_'], message: 'from と to を送ってください' })
+      return
+    }
+    // 形の違う日付は dateStringSchema が止めている（refine の失敗でもここは呼ばれる）
+    if (!isDateString(q.from) || !isDateString(q.to)) return
+    const days = diffDays(q.from, q.to) + 1
+    if (days < 1 || days > RANGE_MAX_DAYS) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['_'],
+        message: `from から to までは 1〜${RANGE_MAX_DAYS} 日にしてください`,
+      })
+    }
+  })
 export type ReservationListQuery = z.input<typeof reservationListQuerySchema>
 
 // ---- 応答 ----
@@ -192,6 +220,8 @@ export const carListItemSchema = carSchema.extend({
   hasReservations: z.boolean(),
   // これからの予約の件数（「使わないにする」の確認に出す。CAR-F-002）
   upcomingCount: z.number().int(),
+  // 車の色の番号：登録の古い順に 0 から（同じ時刻なら ID の順）。カレンダーの帯の色に使う（CAR-F-005、spec 004）
+  colorIndex: z.number().int().min(0),
 })
 export type CarListItem = z.infer<typeof carListItemSchema>
 
