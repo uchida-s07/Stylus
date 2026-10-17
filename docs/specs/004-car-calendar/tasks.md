@@ -265,6 +265,9 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
     6. Cloudflare で stylus-api-dev に 1102（CPU 時間の超過）が出ていないことを確かめる
   - Red: 対象外（手動の確認）
   - 完了条件: すべての確認が済み、結果が書かれている。直すことが見つかったら、spec の範囲ならタスクを足し、範囲の外ならオーナーに伝える
+  - 結果（途中）: 2026-10-17。
+    1. spec/004-car-calendar を push した（038fa75）。`apps/api`・`packages/shared` は T-13 で出した 8198dfd から変わっていないので、API は出し直していない。Cloudflare Pages の確認は success（プレビュー https://spec-004-car-calendar.stylus-family.pages.dev/ ）
+    2.〜6. オーナーの手での確かめ待ち
 
 ## 8. この spec の外のリリース作業（/spec-close の後）
 
