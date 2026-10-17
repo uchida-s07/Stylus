@@ -16,6 +16,8 @@ import {
   reservationList,
   selectDay,
   setDeviceClock,
+  swipeTimeGrid,
+  timeFrame,
 } from '../../../test/car'
 import { json, networkDown } from '../../../test/fakeApi'
 import { signIn } from '../../../test/money'
@@ -556,7 +558,51 @@ describe('車の画面（CAR-F-005）', () => {
     expect(router.state.location.search).toBe('?date=2026-10-10')
   })
 
+  it('[CAR-F-005/AC-24] 10月10日の時間割の空いた所で左へスワイプすると、10月11日の時間割の画面に移り、くうごの帯が出る', async () => {
+    const r = reservation({ from: '2026-10-11 09:00', to: '2026-10-11 12:00' })
+    installCarApi({
+      ...withCars,
+      'GET /car-reservations': (request) => json(reservationList(onDay(request, '2026-10-11', r))),
+    })
+    const { router } = renderApp('/car?date=2026-10-10')
+    expect(await bandsOn('10月10日(土)')).toEqual([])
+    await swipeTimeGrid('left')
+
+    const bands = await bandsOn('10月11日(日)')
+    expect(bands.map((b) => b.dataset.reservationId)).toEqual([r.id])
+    expect(bands[0]).toHaveTextContent(/ノア.*くうご/)
+    expect(router.state.location.search).toBe('?date=2026-10-11')
+  })
+
+  it('[CAR-F-005/AC-25] 10月11日の時間割の空いた所で右へスワイプすると、10月10日の時間割の画面に移り、くうごの帯が出る', async () => {
+    const r = reservation({ from: '2026-10-10 09:00', to: '2026-10-10 12:00' })
+    installCarApi({
+      ...withCars,
+      'GET /car-reservations': (request) => json(reservationList(onDay(request, '2026-10-10', r))),
+    })
+    const { router } = renderApp('/car?date=2026-10-11')
+    expect(await bandsOn('10月11日(日)')).toEqual([])
+    await swipeTimeGrid('right')
+
+    const bands = await bandsOn('10月10日(土)')
+    expect(bands.map((b) => b.dataset.reservationId)).toEqual([r.id])
+    expect(bands[0]).toHaveTextContent(/ノア.*くうご/)
+    expect(router.state.location.search).toBe('?date=2026-10-10')
+  })
+
   // AC ではない確認
+  it('短い横の動きと、縦が大きい動きでは日を移らない（枠も出ない）', async () => {
+    installCarApi({ ...withCars, 'GET /car-reservations': () => json(reservationList([])) })
+    const { router } = renderApp('/car?date=2026-10-10')
+    await bandsOn('10月10日(土)')
+
+    await swipeTimeGrid('left', { dx: 30 })
+    await swipeTimeGrid('left', { dx: 80, dy: 120 })
+    expect(router.state.location.search).toBe('?date=2026-10-10')
+    expect(await dayView('10月10日(土)')).toBeInTheDocument()
+    expect(timeFrame()).toBeNull()
+  })
+
   it('月の画面は見えている範囲（9月27日〜11月7日）を1回だけ引き、日の画面はその日だけを引く', async () => {
     const { requests } = installCarApi({
       ...withCars,

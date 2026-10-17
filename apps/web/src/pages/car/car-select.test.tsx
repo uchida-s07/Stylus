@@ -18,6 +18,7 @@ import {
   reservation,
   reservationList,
   setDeviceClock,
+  swipeTimeGrid,
   tapFrame,
   tapTimeGrid,
   timeFrame,
@@ -319,6 +320,28 @@ describe('時間割の枠から予約を入れる（CAR-F-004）', () => {
     dragFrameBy(120)
 
     expect(timeFrame()).toBe('23:00〜24:00')
+  })
+
+  it('[CAR-F-004/AC-36] 10月10日の時間割に 9:00〜10:00 の枠が出ているときに「次の日」を押すと、10月11日の時間割が出て、枠は出ていない', async () => {
+    openCarPage('/car?date=2026-10-10')
+    await bandsOn('10月10日(土)')
+    await tapTimeGrid('09:00')
+    expect(timeFrame()).toBe('09:00〜10:00')
+    await userEvent.click(screen.getByRole('button', { name: '次の日' }))
+
+    expect(await bandsOn('10月11日(日)')).toEqual([])
+    expect(timeFrame()).toBeNull()
+  })
+
+  it('[CAR-F-004/AC-39] 10月10日の時間割に 9:00〜10:00 の枠が出ているときに、枠の上で始めて左へスワイプしても、日は移らず10月10日の時間割のまま', async () => {
+    const { router } = openCarPage('/car?date=2026-10-10')
+    await bandsOn('10月10日(土)')
+    await tapTimeGrid('09:00')
+    await swipeTimeGrid('left', { on: 'frame' })
+
+    expect(router.state.location.search).toBe('?date=2026-10-10')
+    expect(await dayView('10月10日(土)')).toBeInTheDocument()
+    expect(timeFrame()).toBe('09:00〜10:00')
   })
 
   // AC ではない確認

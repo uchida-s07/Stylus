@@ -16,7 +16,8 @@ import { TimeGrid } from './TimeGrid'
 
 // 車の画面の日の時間割の画面（CAR-F-004・CAR-F-005。date は日本時間の YYYY-MM-DD）
 // 予約はその日だけを引く（from = to = その日）
-// 「月へ戻る」はその日を含む月へ、前の日・次の日はその日へ、どれも URL を置き換える（履歴は積まない）
+// 「月へ戻る」はその日を含む月へ、前の日・次の日（ボタンと左右のスワイプ）はその日へ、どれも URL を置き換える（履歴は積まない）
+// 日を移ると車の画面が日の画面を作り直すので、枠は消える。帯や「予約する」で日の画面を離れたときも同じ
 export function CarDayView({ date }: { date: string }) {
   const [, setSearchParams] = useSearchParams()
   const location = useLocation()
@@ -125,6 +126,9 @@ export function CarDayView({ date }: { date: string }) {
             onFrameChange={(f) => setFramed({ frame: f })}
             onClearFrame={() => setFramed(null)}
             onOpenFrame={openFrame}
+            onSwipeDay={(delta) =>
+              setSearchParams({ date: addDays(date, delta) }, { replace: true })
+            }
           />
         </>
       )}

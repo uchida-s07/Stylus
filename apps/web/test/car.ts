@@ -257,6 +257,26 @@ export function tapFrame() {
   press(frame, { y: yOf(frame.dataset.frameStart!) + 4 })
 }
 
+// 時間割を、その時刻の高さで左右にスワイプする（dx は横に動かす量。左は負）
+// on: 'grid' は空いた所で、'frame' は枠の上で始める
+export async function swipeTimeGrid(
+  direction: 'left' | 'right',
+  options: { at?: string; dx?: number; dy?: number; on?: 'grid' | 'frame' } = {},
+) {
+  const { at = '09:30', dx = 120, dy = 0, on = 'grid' } = options
+  await waitFor(() => timeGridLane(), CALENDAR_WAIT)
+  const target = on === 'frame' ? frameElement() : timeGridLane()
+  const y = on === 'frame' ? yOf(frameElement().dataset.frameStart!) + 4 : yOf(at)
+  const sign = direction === 'left' ? -1 : 1
+  const x = 180
+  press(
+    target,
+    { x, y },
+    { x: x + (sign * dx) / 2, y: y + dy / 2 },
+    { x: x + sign * dx, y: y + dy },
+  )
+}
+
 // 時刻 from をタップして枠を出し、下の端を to まで引く（from〜to の枠）
 export async function makeFrame(from: string, to: string) {
   await tapTimeGrid(from)

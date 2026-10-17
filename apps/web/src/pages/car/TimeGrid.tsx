@@ -26,6 +26,8 @@ const HOURS = Array.from({ length: 24 }, (_, h) => h)
 const VIEW_HEIGHT = 480
 // これより動かずに離したらタップ（px）
 const TAP_SLOP = 8
+// 空いた所で、横にこれより動き、横の動きが縦より大きければスワイプ（px）
+const SWIPE_MIN = 50
 
 // 押してから離すまでの操作。kind は、空いた所・枠ごと動かす・上の端・下の端
 type Drag = {
@@ -47,6 +49,7 @@ export function TimeGrid({
   onFrameChange,
   onClearFrame,
   onOpenFrame,
+  onSwipeDay,
 }: {
   // その日（日本時間の YYYY-MM-DD）
   date: string
@@ -64,6 +67,8 @@ export function TimeGrid({
   onClearFrame: () => void
   // 枠をタップした（引かずに離した）
   onOpenFrame: () => void
+  // 空いた所で左右にスワイプした（左は次の日 1、右は前の日 -1）
+  onSwipeDay: (delta: 1 | -1) => void
 }) {
   const label = formatJstDate(jstStartOfDay(date)!)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -92,7 +97,8 @@ export function TimeGrid({
   }, [])
 
   // 時間割の面の上での指・マウスの操作（pointer のイベントでどちらも同じに扱う）
-  // 押した所で何をするかを決める：枠の端のつまみ → 端を引く、枠の中 → 枠ごと動かす、空いた所 → タップ
+  // 押した所で何をするかを決める：枠の端のつまみ → 端を引く、枠の中 → 枠ごと動かす、空いた所 → タップか左右のスワイプ
+  // 枠の上で始めた操作は、横に動いても枠を動かす操作として扱う（日は移らない）
   // 帯の上で押したときは何もしない（帯はリンクなので、押すと予約の中身へ進む）
   const drag = useRef<Drag | null>(null)
   // 時間割の面の上の端からの距離を分にする（jsdom では寸法が0なので、上の端は 0 になる）
@@ -132,7 +138,15 @@ export function TimeGrid({
     onPointerUp(e: PointerEvent<HTMLDivElement>) {
       const d = drag.current
       drag.current = null
-      if (!d || d.pointerId !== e.pointerId || d.moved) return
+      if (!d || d.pointerId !== e.pointerId) return
+      if (d.moved) {
+        const dx = e.clientX - d.x
+        const dy = e.clientY - d.y
+        if (d.kind === 'empty' && Math.abs(dx) >= SWIPE_MIN && Math.abs(dx) > Math.abs(dy)) {
+          onSwipeDay(dx < 0 ? 1 : -1)
+        }
+        return
+      }
       // 引かずに離した（タップ）
       if (d.kind !== 'empty') return onOpenFrame()
       if (frame) return onClearFrame()
