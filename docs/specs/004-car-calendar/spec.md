@@ -3,10 +3,10 @@
 # 004 車の予約のカレンダー
 
 tier: M
-status: approved
+status: done
 created: 2026-10-11
 approved: 2026-10-16 17:12
-done:
+done: 2026-10-17
 review: 2026-10-16 合格（T-13 の確認を受けて draft に戻した後のやり直し。1回目は R-1（23:00 より後のタップの枠）の欠落で不合格、直して2回目で合格。2回目の注意 R-1〜R-7 は直した（R-5 は /spec-plan で、R-6 は承知で進める）。直した後の確かめ直しはオーナーの判断で飛ばした。docs/review-notes.md）
 
 <!-- status: draft | approved | done -->
