@@ -1,6 +1,7 @@
-import { carListResponseSchema, carSchema } from '@stylus/shared'
+import { carListResponseSchema, carSchema, reservationListResponseSchema } from '@stylus/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createCarTestApp, expectError, type CarTestApp } from '../../test/car'
+import { cars } from '../db/schema'
 import type { FamilyKey } from '../../test/family'
 
 describe('車の API（CAR-F-001〜003・009）', () => {
@@ -74,6 +75,7 @@ describe('車の API（CAR-F-001〜003・009）', () => {
           isActive: true,
           hasReservations: false,
           upcomingCount: 0,
+          colorIndex: 0,
         },
       ])
     })
@@ -83,6 +85,36 @@ describe('車の API（CAR-F-001〜003・009）', () => {
       await add(' フィット ')
       await add('アクア')
       expect(await names()).toEqual(['BMW', 'アクア', 'フィット'])
+    })
+  })
+
+  describe('車の色の番号（CAR-F-005、spec 004）', () => {
+    // 登録の時刻を決めて車を入れる
+    async function insertCarAt(name: string, createdAt: string, id?: string) {
+      await t.db
+        .insert(cars)
+        .values({ name, createdAt: new Date(createdAt), ...(id ? { id } : {}) })
+    }
+
+    it('[CAR-F-005/AC-10] 「フィット」を先に、「ノア」を後に登録すると、2台の色の番号は違い、登録の古い順に 0・1 になる（返す順は名前の順のまま）', async () => {
+      await t.deleteCar(await t.carId('BMW'))
+      await insertCarAt('フィット', '2026-10-01T00:00:00Z')
+      await insertCarAt('ノア', '2026-10-02T00:00:00Z')
+      expect((await list()).map((c) => [c.name, c.colorIndex])).toEqual([
+        ['ノア', 1],
+        ['フィット', 0],
+      ])
+    })
+
+    // AC ではない確認
+    it('登録の時刻が同じなら ID の順に番号を付ける', async () => {
+      await t.deleteCar(await t.carId('BMW'))
+      await insertCarAt('アクア', '2026-10-01T00:00:00Z', '00000000-0000-4000-8000-0000000000b2')
+      await insertCarAt('ノア', '2026-10-01T00:00:00Z', '00000000-0000-4000-8000-0000000000b1')
+      expect((await list()).map((c) => [c.name, c.colorIndex])).toEqual([
+        ['アクア', 1],
+        ['ノア', 0],
+      ])
     })
   })
 
@@ -109,7 +141,7 @@ describe('車の API（CAR-F-001〜003・009）', () => {
       expect(res.status).toBe(200)
     })
 
-    it('[CAR-F-002/AC-3] くうごのこれからの予約が1件ある「ノア」は、件数1と出て、「使わない」にした後も予約は残る', async () => {
+    it('[CAR-F-002/AC-3] くうごのこれからの予約が1件ある「ノア」は、件数1と出て、「使わない」にした後も予約は10月10日を引くと出る', async () => {
       const car = await t.insertCar('ノア')
       const reservation = await t.insertReservation({
         car: 'ノア',
@@ -119,7 +151,15 @@ describe('車の API（CAR-F-001〜003・009）', () => {
       })
       expect(await noah()).toMatchObject({ upcomingCount: 1, hasReservations: true })
       expect((await setActive(car.id, false)).status).toBe(200)
-      expect(await t.findReservation(reservation.id)).toBeDefined()
+      const res = await t.call(
+        'mother',
+        'GET',
+        '/car-reservations?view=range&from=2026-10-10&to=2026-10-10',
+      )
+      expect(res.status).toBe(200)
+      const { reservations } = reservationListResponseSchema.parse(await res.json())
+      expect(reservations.map((r) => r.id)).toEqual([reservation.id])
+      expect(reservations[0]?.car).toMatchObject({ name: 'ノア', isActive: false })
       expect(await noah()).toMatchObject({ isActive: false, upcomingCount: 1 })
     })
 

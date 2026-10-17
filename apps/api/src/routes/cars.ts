@@ -23,7 +23,7 @@ const outerCarId = sql`${sql.identifier('cars')}.${sql.identifier('id')}`
 export function carsRoute(config: Pick<AppConfig, 'now'>) {
   return (
     new Hono<AppHono>()
-      // 名前の順。予約があるか（「削除」を出すか）と、これからの予約の件数（「使わないにする」の確認）を添える
+      // 名前の順。予約があるか（「削除」を出すか）と、これからの予約の件数（「使わないにする」の確認）、車の色の番号を添える
       .get('/', async (c) => {
         const now = config.now().toISOString()
         const rows = await c.var.db
@@ -32,6 +32,11 @@ export function carsRoute(config: Pick<AppConfig, 'now'>) {
             hasReservations: sql<boolean>`exists (select 1 from ${carReservations} where ${carReservations.carId} = ${outerCarId})`,
             upcomingCount:
               sql<number>`(select count(*) from ${carReservations} where ${carReservations.carId} = ${outerCarId} and ${carReservations.endsAt} > ${now}::timestamptz)`.mapWith(
+                Number,
+              ),
+            // 車の色の番号：登録の古い順に 0 から（同じ時刻なら ID の順）。返す順（名前の順）とは別に数える
+            colorIndex:
+              sql<number>`(row_number() over (order by ${cars.createdAt}, ${cars.id}) - 1)`.mapWith(
                 Number,
               ),
           })

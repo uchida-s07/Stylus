@@ -24,8 +24,12 @@
 | 精算 | 2人の当事者の間の請求中の請求を、両方向とも差し引いてまとめて払う・受け取ること | 表 `settlements`、`/settlements`、`/money/settle` | 清算、相殺 |
 | お金の履歴 | 片付いた請求（確認済・取消）の一覧。お金の画面の右上のメニューから開く | `/money/history`、`HistoryPage`、`GET /bills?view=closed` | 片付いた |
 | 「支払い」「受け取り」 | お金の画面の一覧のタブ。自分（親なら「家庭」も）が請求先側の請求が「支払い」、請求する側の請求が「受け取り」 | `MoneyPage` の `Tab`（`'pay' \| 'receive'`）、localStorage のキー `stylus.money.billTab` | 支出・収入 |
-| 予約 | 1台の車を、開始日時から終了日時まで使う予定。予約した家族（本人）・行き先（任意）・メモ（任意）を持つ。取り消すと消える | 表 `car_reservations`、`/car-reservations`、`Reservation` | 予定（「これからの予約」の一覧を指すときだけ「予定」と呼ぶ）、ブッキング |
-| これからの予約 | 終了日時が今より後の予約（使用中を含む）。車の画面に出る | `GET /car-reservations?view=upcoming`、`/car`、`CarPage` | 未来の予約 |
+| 予約 | 1台の車を、開始日時から終了日時まで使う予定。予約した家族（本人）・行き先（任意）・メモ（任意）を持つ。取り消すと消える | 表 `car_reservations`、`/car-reservations`、`Reservation` | 予定（車の画面はカレンダー・時間割と呼ぶ）、ブッキング |
+| これからの予約 | 終了日時が今より後の予約（使用中を含む） | `GET /car-reservations?view=upcoming` | 未来の予約 |
+| カレンダー | 車の画面。月のカレンダー（日ごとに予約を短い帯で出す）と、日の時間割（0〜24時に予約を帯で出す）の2つの画面からなる。月のカレンダーで日をタップすると、その日の時間割へ移る | `/car`・`/car?month=`（月のカレンダー、`CarMonthView`・`MonthCalendar`）、`/car?date=`（時間割、`CarDayView`・`TimeGrid`）、`CarPage`、`GET /car-reservations?view=range` | 予定、スケジュール |
+| 帯 | 予約を車の色で出すもの。月のカレンダーの短い帯は押すとその日の時間割へ移り、時間割の帯は押すと予約の中身が出る | `car-month-band`、`layoutBands()`、`data-reservation-id` | バー、イベント |
+| 枠 | 時間割で予約の時間を選ぶもの。空いた所のタップで1時間で出て、端で伸び縮み・中で移動（15分刻み）し、タップすると予約の入力が出る | `Frame`、`frameAt()`・`resizeFrame()`・`moveFrame()`、`car-frame`、`ReservationDialog` | 選択範囲 |
+| 車の色 | 帯を塗る車ごとの色。登録の古い順に決まった8色の並びから選び、9台目からは繰り返す | `GET /cars` の `colorIndex`、`CAR_COLORS`・`carColor()` | — |
 | 使用中 | これからの予約のうち、開始日時が今以前のもの。車と開始日時は変えられず、取り消せない | `reservationPhase()` の `'in_use'`（まだ始まっていないものは `'not_started'`） | 利用中、貸出中 |
 | 終わった予約 | 終了日時が今以前の予約。車の履歴に出る。直せず、取り消せない | `reservationPhase()` の `'ended'` | 過去の予約、完了 |
 | 車の履歴 | 終わった予約の一覧（新しい順に30件ずつ）。車の画面の右上のメニューから開く | `/car/history`、`CarHistoryPage`、`GET /car-reservations?view=past` | 利用履歴 |

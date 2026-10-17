@@ -50,6 +50,15 @@ describe('予約の API（CAR-F-004〜008）', () => {
     return reservationListResponseSchema.parse(await res.json()).reservations
   }
 
+  // 期間で引く（車の画面のカレンダー。spec 004）。from・to は日本時間の日付
+  async function range(from: string, to = from, who: FamilyKey = 'father') {
+    const res = await t.call(who, 'GET', `/car-reservations?view=range&from=${from}&to=${to}`)
+    expect(res.status).toBe(200)
+    const body = reservationListResponseSchema.parse(await res.json())
+    expect(body.nextCursor).toBeNull()
+    return body.reservations
+  }
+
   // 予定・履歴の1行を読みやすい形にする（日時は日本時間の「MM-DD HH:MM」）
   function summary(
     r: { car: { name: string }; member: { displayName: string } } & Record<string, unknown>,
@@ -112,14 +121,14 @@ describe('予約の API（CAR-F-004〜008）', () => {
   const period = (from: string, to: string) => `${jstIso(from)}〜${jstIso(to)}`
 
   describe('予約の登録と予定の基本（CAR-F-004）', () => {
-    it('[CAR-F-004/AC-1] くうごが「ノア」を 10月10日 9:00〜12:00・行き先「大学」で予約すると、予約が1件でき、母の予定に出る', async () => {
+    it('[CAR-F-004/AC-1] くうごが「ノア」を 10月10日 9:00〜12:00・行き先「大学」で予約すると、予約が1件でき、母が10月10日を引くと出る', async () => {
       const res = await reserve('kugo', {
         from: '2026-10-10 09:00',
         to: '2026-10-10 12:00',
         destination: '大学',
       })
       expect(await t.reservationRows()).toHaveLength(1)
-      const list = await upcoming('mother')
+      const list = await range('2026-10-10', '2026-10-10', 'mother')
       expect(list.map(summary)).toEqual(['ノア くうご 10-10 09:00〜10-10 12:00'])
       expect(list[0]).toMatchObject({
         destination: '大学',
@@ -172,9 +181,11 @@ describe('予約の API（CAR-F-004〜008）', () => {
       expect(res.status).toBe(201)
     })
 
-    it('[CAR-F-004/AC-9] 日本時間 2026-10-07 20:00 に 10月7日 19:00〜22:00 で予約すると、予約ができ予定に出る（使用中）', async () => {
+    it('[CAR-F-004/AC-9] 日本時間 2026-10-07 20:00 に 10月7日 19:00〜22:00 で予約すると、予約ができ10月7日を引くと出る（使用中）', async () => {
       const res = await reserve('kugo', { from: '2026-10-07 19:00', to: '2026-10-07 22:00' })
-      expect((await upcoming()).map(summary)).toEqual(['ノア くうご 10-07 19:00〜10-07 22:00'])
+      expect((await range('2026-10-07')).map(summary)).toEqual([
+        'ノア くうご 10-07 19:00〜10-07 22:00',
+      ])
       expect(res.status).toBe(201)
     })
 
@@ -364,7 +375,7 @@ describe('予約の API（CAR-F-004〜008）', () => {
       expect(rows.map((r) => r.destination)).toEqual(['大学'])
       const error = await expectError(res, 409, 'already_registered')
       expect(error.message).toBe(
-        'この予約はすでに登録されています。予定で確かめて、必要なら直してください。',
+        'この予約はすでに登録されています。車の画面で確かめて、必要なら直してください。',
       )
     })
 
@@ -381,8 +392,8 @@ describe('予約の API（CAR-F-004〜008）', () => {
     })
   })
 
-  describe('予定の一覧と予約の中身（CAR-F-005）', () => {
-    it('[CAR-F-005/AC-1] 10月7日 20:00 に父が開くと、使用中のくうご・10月8日の母の順に出て、終わったせいごの予約は出ない', async () => {
+  describe('期間で引く予約と予約の中身（CAR-F-005）', () => {
+    it('[CAR-F-005/AC-1] 10月7日 20:00 に父が10月のカレンダーの範囲を引くと、終わったせいご・使用中のくうご・10月8日の母の順に出て、10月7日だけを引くとせいごとくうごが出る', async () => {
       // 登録の順と開始の順を変えておく
       await t.insertReservation({
         car: 'ノア',
@@ -402,36 +413,50 @@ describe('予約の API（CAR-F-004〜008）', () => {
         from: '2026-10-07 08:00',
         to: '2026-10-07 10:00',
       })
-      expect((await upcoming('father')).map(summary)).toEqual([
+      // 2026年10月のカレンダーに見えている6週（9月27日〜11月7日）
+      expect((await range('2026-09-27', '2026-11-07', 'father')).map(summary)).toEqual([
+        'ノア せいご 10-07 08:00〜10-07 10:00',
         'ノア くうご 10-07 19:00〜10-07 22:00',
         'ノア 母 10-08 09:00〜10-08 10:00',
       ])
+      expect((await range('2026-10-07', '2026-10-07', 'father')).map(summary)).toEqual([
+        'ノア せいご 10-07 08:00〜10-07 10:00',
+        'ノア くうご 10-07 19:00〜10-07 22:00',
+      ])
     })
 
-    it('[CAR-F-005/AC-2] 10月7日 22:00 に、19:00〜22:00 の予約だけがあるとき、予定は空', async () => {
-      t.setNow('2026-10-07 22:00')
+    it('[CAR-F-005/AC-2] 10月9日に予約が無いとき、10月9日を引くと空（10月9日 0:00 に終わる予約と10月10日 0:00 に始まる予約は出ない）', async () => {
       await t.insertReservation({
         car: 'ノア',
         who: 'kugo',
-        from: '2026-10-07 19:00',
-        to: '2026-10-07 22:00',
+        from: '2026-10-08 22:00',
+        to: '2026-10-09 00:00',
       })
-      expect(await upcoming()).toEqual([])
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'mother',
+        from: '2026-10-10 00:00',
+        to: '2026-10-10 02:00',
+      })
+      expect(await range('2026-10-09')).toEqual([])
     })
 
-    it('[CAR-F-005/AC-3] 10月10日 22:00〜10月11日 2:00 の予約は、終了の日時つきで出る', async () => {
+    it('[CAR-F-005/AC-3] 10月10日 22:00〜10月11日 2:00 の予約は、10月10日を引いても10月11日を引いても、開始と終了の日時つきで出る', async () => {
       await t.insertReservation({
         car: 'ノア',
         who: 'kugo',
         from: '2026-10-10 22:00',
         to: '2026-10-11 02:00',
       })
-      const list = await upcoming()
-      expect(list.map(summary)).toEqual(['ノア くうご 10-10 22:00〜10-11 02:00'])
-      expect(list[0]?.endsAt).toBe(jstIso('2026-10-11 02:00'))
+      for (const day of ['2026-10-10', '2026-10-11']) {
+        const list = await range(day)
+        expect(list.map(summary), day).toEqual(['ノア くうご 10-10 22:00〜10-11 02:00'])
+        expect(list[0]?.startsAt).toBe(jstIso('2026-10-10 22:00'))
+        expect(list[0]?.endsAt).toBe(jstIso('2026-10-11 02:00'))
+      }
     })
 
-    it('[CAR-F-005/AC-4] 「使わない」の車「ノア」のくうごのこれからの予約も出て、「使わない」の印が付く', async () => {
+    it('[CAR-F-005/AC-4] 「使わない」の車「ノア」のくうごの予約も10月10日を引くと出て、「使わない」の印が付く', async () => {
       await t.insertReservation({
         car: 'ノア',
         who: 'kugo',
@@ -439,7 +464,7 @@ describe('予約の API（CAR-F-004〜008）', () => {
         to: '2026-10-10 12:00',
       })
       await t.call('seigo', 'PATCH', `/cars/${await t.carId('ノア')}`, { isActive: false })
-      const list = await upcoming()
+      const list = await range('2026-10-10')
       expect(list.map(summary)).toEqual(['ノア くうご 10-10 09:00〜10-10 12:00'])
       expect(list[0]?.car.isActive).toBe(false)
     })
@@ -482,6 +507,22 @@ describe('予約の API（CAR-F-004〜008）', () => {
       expect(error.message).toBe('この予約は見つかりません。')
     })
 
+    it('[CAR-F-005/AC-9] 10月7日 20:00 に、9月のカレンダーの範囲を引くと、終わったせいごの 9月20日 9:00〜10:00 が出る', async () => {
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'seigo',
+        from: '2026-09-20 09:00',
+        to: '2026-09-20 10:00',
+      })
+      // 2026年9月のカレンダーに見えている6週（8月30日〜10月10日）
+      expect((await range('2026-08-30', '2026-10-10')).map(summary)).toEqual([
+        'ノア せいご 09-20 09:00〜09-20 10:00',
+      ])
+      expect((await range('2026-09-20')).map(summary)).toEqual([
+        'ノア せいご 09-20 09:00〜09-20 10:00',
+      ])
+    })
+
     it('開始が同じなら車の名前の順', async () => {
       await t.insertCar('アクア')
       await t.insertReservation({
@@ -500,6 +541,103 @@ describe('予約の API（CAR-F-004〜008）', () => {
         'アクア 母 10-10 09:00〜10-10 10:00',
         'ノア くうご 10-10 09:00〜10-10 12:00',
       ])
+    })
+  })
+
+  // AC ではない確認（spec 004「3. 変更差分」API）
+  describe('期間で引く予約の境目と入力', () => {
+    it('終わった・使用中・まだ始まっていない予約を区別せずに、開始の早い順（同じなら車の名前の順）で返す', async () => {
+      await t.insertCar('アクア')
+      await t.insertReservation({
+        car: 'アクア',
+        who: 'father',
+        from: '2026-10-07 21:00',
+        to: '2026-10-07 22:00',
+      })
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-07 21:00',
+        to: '2026-10-07 23:00',
+      })
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'seigo',
+        from: '2026-10-07 08:00',
+        to: '2026-10-07 10:00',
+      })
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'mother',
+        from: '2026-10-07 19:00',
+        to: '2026-10-07 21:00',
+      })
+      expect((await range('2026-10-07')).map(summary)).toEqual([
+        'ノア せいご 10-07 08:00〜10-07 10:00',
+        'ノア 母 10-07 19:00〜10-07 21:00',
+        'アクア 父 10-07 21:00〜10-07 22:00',
+        'ノア くうご 10-07 21:00〜10-07 23:00',
+      ])
+    })
+
+    it('from の 0:00 ちょうどに終わる予約と、to の翌日 0:00 ちょうどに始まる予約は返さず、その1分内側にかかる予約は返す', async () => {
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-09 22:00',
+        to: '2026-10-10 00:00',
+      })
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'mother',
+        from: '2026-10-13 00:00',
+        to: '2026-10-13 02:00',
+      })
+      await t.insertCar('フィット')
+      await t.insertReservation({
+        car: 'フィット',
+        who: 'seigo',
+        from: '2026-10-09 23:00',
+        to: '2026-10-10 00:01',
+      })
+      await t.insertReservation({
+        car: 'フィット',
+        who: 'father',
+        from: '2026-10-12 23:59',
+        to: '2026-10-13 03:00',
+      })
+      expect((await range('2026-10-10', '2026-10-12')).map(summary)).toEqual([
+        'フィット せいご 10-09 23:00〜10-10 00:01',
+        'フィット 父 10-12 23:59〜10-13 03:00',
+      ])
+    })
+
+    it('日本時間と UTC で日付がずれる予約（10月10日 8:00、UTC では10月9日）は、日本時間の日付で返す', async () => {
+      await t.insertReservation({
+        car: 'ノア',
+        who: 'kugo',
+        from: '2026-10-10 08:00',
+        to: '2026-10-10 08:30',
+      })
+      expect((await range('2026-10-10')).map(summary)).toEqual([
+        'ノア くうご 10-10 08:00〜10-10 08:30',
+      ])
+      expect(await range('2026-10-09')).toEqual([])
+    })
+
+    it('43日の期間・from が to より後・実在しない日付・from が無い要求は 400', async () => {
+      for (const query of [
+        'from=2026-09-27&to=2026-11-08',
+        'from=2026-10-11&to=2026-10-10',
+        'from=2026-02-30&to=2026-03-01',
+        'to=2026-10-10',
+      ]) {
+        await expectError(
+          await t.call('father', 'GET', `/car-reservations?view=range&${query}`),
+          400,
+          'invalid_input',
+        )
+      }
     })
   })
 
@@ -572,7 +710,7 @@ describe('予約の API（CAR-F-004〜008）', () => {
       expect(second.nextCursor).toBeNull()
     })
 
-    it('[CAR-F-009/AC-1] 終わった予約とこれからの予約が1件ずつある「ノア」を「ヴォクシー」に変えると、予定と履歴の両方で「ヴォクシー」と出る', async () => {
+    it('[CAR-F-009/AC-1] 終わった予約とこれからの予約が1件ずつある「ノア」を「ヴォクシー」に変えると、期間で引いた予約と履歴の両方で「ヴォクシー」と出る', async () => {
       await t.insertReservation({
         car: 'ノア',
         who: 'kugo',
@@ -586,7 +724,8 @@ describe('予約の API（CAR-F-004〜008）', () => {
         to: '2026-10-10 12:00',
       })
       await t.call('mother', 'PATCH', `/cars/${await t.carId('ノア')}`, { name: 'ヴォクシー' })
-      expect((await upcoming()).map(summary)).toEqual([
+      expect((await range('2026-10-06', '2026-10-10')).map(summary)).toEqual([
+        'ヴォクシー くうご 10-06 09:00〜10-06 10:00',
         'ヴォクシー くうご 10-10 09:00〜10-10 12:00',
       ])
       expect((await past()).reservations.map(summary)).toEqual([
@@ -605,14 +744,16 @@ describe('予約の API（CAR-F-004〜008）', () => {
   })
 
   describe('まだ始まっていない予約を直す（CAR-F-006）', () => {
-    it('[CAR-F-006/AC-1] くうごが 10月10日 9:00〜12:00 を 13:00〜16:00 に直すと、予定に 13:00〜16:00 で出る', async () => {
+    it('[CAR-F-006/AC-1] くうごが 10月10日 9:00〜12:00 を 13:00〜16:00 に直すと、10月10日を引くと 13:00〜16:00 で出る', async () => {
       const r = await kugoReservation()
       const res = await edit(
         'kugo',
         r.id,
         await editBody(r, { from: '2026-10-10 13:00', to: '2026-10-10 16:00' }),
       )
-      expect((await upcoming()).map(summary)).toEqual(['ノア くうご 10-10 13:00〜10-10 16:00'])
+      expect((await range('2026-10-10')).map(summary)).toEqual([
+        'ノア くうご 10-10 13:00〜10-10 16:00',
+      ])
       expect(res.status).toBe(200)
       expect(reservationDetailSchema.parse(await res.json())).toMatchObject({
         version: 2,
@@ -620,7 +761,7 @@ describe('予約の API（CAR-F-004〜008）', () => {
       })
     })
 
-    it('[CAR-F-006/AC-2] 重なりで止められた母の 10:00〜11:00 は、くうごが 11:00〜12:00 に直した後なら予約でき、予定に2件とも出る', async () => {
+    it('[CAR-F-006/AC-2] 重なりで止められた母の 10:00〜11:00 は、くうごが 11:00〜12:00 に直した後なら予約でき、10月10日を引くと2件とも出る', async () => {
       const r = await kugoReservation()
       await expectError(
         await reserve('mother', { from: '2026-10-10 10:00', to: '2026-10-10 11:00' }),
@@ -631,7 +772,7 @@ describe('予約の API（CAR-F-004〜008）', () => {
         (await edit('kugo', r.id, await editBody(r, { from: '2026-10-10 11:00' }))).status,
       ).toBe(200)
       const res = await reserve('mother', { from: '2026-10-10 10:00', to: '2026-10-10 11:00' })
-      expect((await upcoming()).map(summary)).toEqual([
+      expect((await range('2026-10-10')).map(summary)).toEqual([
         'ノア 母 10-10 10:00〜10-10 11:00',
         'ノア くうご 10-10 11:00〜10-10 12:00',
       ])
@@ -808,20 +949,24 @@ describe('予約の API（CAR-F-004〜008）', () => {
       return reservationListResponseSchema.parse(await res.json()).reservations
     }
 
-    it('[CAR-F-006/AC-7] 10月10日 10:00、使用中の 9:00〜12:00 の終了を 9:40 に直すと、予定には出ず、履歴に 9:00〜9:40 で出る', async () => {
+    it('[CAR-F-006/AC-7] 10月10日 10:00、使用中の 9:00〜12:00 の終了を 9:40 に直すと、10月10日を引くと 9:00〜9:40 で出て、履歴にも 9:00〜9:40 で出る', async () => {
       const r = await kugoReservation()
       t.setNow('2026-10-10 10:00')
       const res = await edit('kugo', r.id, inUseBody(r, { to: '2026-10-10 09:40' }))
-      expect(await upcoming()).toEqual([])
+      expect((await range('2026-10-10')).map(summary)).toEqual([
+        'ノア くうご 10-10 09:00〜10-10 09:40',
+      ])
       expect((await pastList()).map(summary)).toEqual(['ノア くうご 10-10 09:00〜10-10 09:40'])
       expect(res.status).toBe(200)
     })
 
-    it('[CAR-F-006/AC-8] 10月10日 10:00、使用中の 9:00〜12:00 の終了を 14:00 に直すと、予定に 9:00〜14:00 で出る', async () => {
+    it('[CAR-F-006/AC-8] 10月10日 10:00、使用中の 9:00〜12:00 の終了を 14:00 に直すと、10月10日を引くと 9:00〜14:00 で出る', async () => {
       const r = await kugoReservation()
       t.setNow('2026-10-10 10:00')
       const res = await edit('kugo', r.id, inUseBody(r, { to: '2026-10-10 14:00' }))
-      expect((await upcoming()).map(summary)).toEqual(['ノア くうご 10-10 09:00〜10-10 14:00'])
+      expect((await range('2026-10-10')).map(summary)).toEqual([
+        'ノア くうご 10-10 09:00〜10-10 14:00',
+      ])
       expect(res.status).toBe(200)
     })
 
@@ -875,7 +1020,9 @@ describe('予約の API（CAR-F-004〜008）', () => {
       const r = await kugoReservation()
       await t.call('mother', 'PATCH', `/cars/${r.carId}`, { isActive: false })
       const res = await edit('kugo', r.id, await editBody(r, { to: '2026-10-10 13:00' }))
-      expect((await upcoming()).map(summary)).toEqual(['ノア くうご 10-10 09:00〜10-10 13:00'])
+      expect((await range('2026-10-10')).map(summary)).toEqual([
+        'ノア くうご 10-10 09:00〜10-10 13:00',
+      ])
       expect(res.status).toBe(200)
     })
 
@@ -892,11 +1039,11 @@ describe('予約の API（CAR-F-004〜008）', () => {
   describe('予約を取り消す（CAR-F-007）', () => {
     const cancel = (who: FamilyKey, id: string) => t.call(who, 'DELETE', `/car-reservations/${id}`)
 
-    it('[CAR-F-007/AC-1] くうごが 10月10日 9:00〜12:00 を取り消すと、予定にも履歴にも出ない', async () => {
+    it('[CAR-F-007/AC-1] くうごが 10月10日 9:00〜12:00 を取り消すと、10月10日を引いても履歴にも出ない', async () => {
       const r = await kugoReservation()
       const res = await cancel('kugo', r.id)
       expect(await t.findReservation(r.id)).toBeUndefined()
-      expect(await upcoming()).toEqual([])
+      expect(await range('2026-10-10')).toEqual([])
       const past = await t.call('father', 'GET', '/car-reservations?view=past')
       expect(reservationListResponseSchema.parse(await past.json()).reservations).toEqual([])
       expect(res.status).toBe(204)
@@ -942,13 +1089,13 @@ describe('予約の API（CAR-F-004〜008）', () => {
       await expectError(res, 409, 'state_changed')
     })
 
-    it('[CAR-F-007/AC-8] 確認を開いている間に端末 B で終了を 13:00 に直していても、取り消されて予定に出ない', async () => {
+    it('[CAR-F-007/AC-8] 確認を開いている間に端末 B で終了を 13:00 に直していても、取り消されて10月10日を引いても出ない', async () => {
       const r = await kugoReservation()
       expect((await edit('kugo', r.id, await editBody(r, { to: '2026-10-10 13:00' }))).status).toBe(
         200,
       )
       const res = await cancel('kugo', r.id)
-      expect(await upcoming()).toEqual([])
+      expect(await range('2026-10-10')).toEqual([])
       expect(res.status).toBe(204)
     })
   })

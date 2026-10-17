@@ -1,0 +1,209 @@
+/* 車の画面のカレンダー（月のカレンダーは MonthCalendar.tsx、時間割は TimeGrid.tsx） */
+
+/* 月のカレンダー（MonthCalendar.tsx）：7列の格子。曜日の行と、6週の日のセル */
+.car-month {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-top: 1px solid var(--mantine-color-default-border);
+  border-left: 1px solid var(--mantine-color-default-border);
+}
+
+.car-month-weekday {
+  padding: 2px 0;
+  border-right: 1px solid var(--mantine-color-default-border);
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  font-size: var(--mantine-font-size-xs);
+  text-align: center;
+}
+
+/* 日のセル。押すとその日の時間割の画面へ（帯の上を押しても同じ） */
+.car-month-day {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  min-height: 4.75rem;
+  padding: 2px;
+  border: 0;
+  border-right: 1px solid var(--mantine-color-default-border);
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.car-month-day:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+/* ほかの月の日は薄く */
+.car-month-day[data-outside='true'] {
+  color: var(--mantine-color-dimmed);
+}
+
+.car-month-day-number {
+  align-self: center;
+  min-width: 1.5em;
+  border-radius: 999px;
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1.5em;
+  text-align: center;
+}
+
+/* 今日の日は数字を丸で囲む */
+.car-month-day[data-today='true'] > .car-month-day-number {
+  background: var(--mantine-color-blue-filled);
+  color: var(--mantine-color-white);
+  font-weight: 700;
+}
+
+/* 予約ごとの短い帯（車の名前）。色は車の色（style で渡す） */
+.car-month-band {
+  overflow: hidden;
+  padding: 0 2px;
+  border-radius: 2px;
+  color: var(--mantine-color-white);
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+/* 「使わない」の車の帯は薄くする */
+.car-month-band[data-inactive='true'] {
+  opacity: 0.45;
+}
+
+.car-month-more {
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+/* 時間割（TimeGrid.tsx）：見えている高さの中を縦にスクロールする。左に時刻の列、右に帯と枠の面 */
+.car-grid-scroll {
+  overflow-y: auto;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 4px;
+}
+
+.car-grid {
+  position: relative;
+}
+
+.car-grid-hour {
+  position: absolute;
+  left: 0;
+  width: 40px;
+  padding-right: 4px;
+  transform: translateY(-0.6em);
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+  text-align: right;
+}
+
+/* 帯と枠の面。1時間ごとの目盛りと30分の補助の線（1時間の高さは --car-hour） */
+.car-grid-lane {
+  position: absolute;
+  inset: 0 0 0 44px;
+  background-image:
+    linear-gradient(to bottom, var(--mantine-color-default-border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--mantine-color-gray-2) 1px, transparent 1px);
+  background-position:
+    0 0,
+    0 calc(var(--car-hour) / 2);
+  background-size:
+    100% var(--car-hour),
+    100% var(--car-hour);
+  /* 空いた所は縦のスクロールだけをブラウザに任せる（横の動きはスワイプとしてアプリが扱う） */
+  touch-action: pan-y;
+}
+
+/* 帯を置く所。右に帯の無い余白をいつも残す（指で押して枠を出せる幅。spec 004 T-1 の V-2 の 48px） */
+.car-grid-bands {
+  position: absolute;
+  inset: 0 48px 0 0;
+}
+
+/* 時間割の帯（その予約の中身へのリンク）。色は車の色（style で渡す） */
+.car-band {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 1px 3px;
+  border: 1px solid var(--mantine-color-body);
+  border-radius: 4px;
+  color: var(--mantine-color-white);
+  text-decoration: none;
+}
+
+/* 「使わない」の車の帯は薄くする */
+.car-band-inactive {
+  opacity: 0.45;
+}
+
+/* 今の時刻の線（今日だけ） */
+.car-grid-now {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: var(--mantine-color-red-filled);
+  pointer-events: none;
+}
+
+/* 枠：時間割で予約の時間を選ぶもの。枠の上ではスクロールとスワイプを止める */
+.car-frame {
+  position: absolute;
+  right: 0;
+  left: 0;
+  box-sizing: border-box;
+  border: 2px solid var(--mantine-color-blue-filled);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--mantine-color-blue-filled) 25%, transparent);
+  touch-action: none;
+  cursor: grab;
+}
+
+.car-frame-label {
+  display: block;
+  padding: 0 4px;
+  color: var(--mantine-color-blue-filled);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* 上下の端のつまみ（指で押せるように、見た目より当たりを大きくする） */
+.car-frame-handle {
+  position: absolute;
+  left: 50%;
+  width: 44px;
+  height: 24px;
+  margin-left: -22px;
+  cursor: ns-resize;
+}
+
+.car-frame-handle::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border: 2px solid var(--mantine-color-blue-filled);
+  border-radius: 50%;
+  background: var(--mantine-color-body);
+  content: '';
+}
+
+.car-frame-handle-start {
+  top: -12px;
+}
+
+.car-frame-handle-end {
+  bottom: -12px;
+}

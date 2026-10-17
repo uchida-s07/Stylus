@@ -208,6 +208,40 @@ describe('一覧のクエリ', () => {
     })
   })
 
+  it('view=range は from・to（実在する日付）を受け付ける', () => {
+    expect(
+      reservationListQuerySchema.parse({ view: 'range', from: '2026-09-27', to: '2026-11-07' }),
+    ).toEqual({ view: 'range', from: '2026-09-27', to: '2026-11-07' })
+    expect(
+      reservationListQuerySchema.parse({ view: 'range', from: '2026-10-10', to: '2026-10-10' }),
+    ).toEqual({ view: 'range', from: '2026-10-10', to: '2026-10-10' })
+  })
+
+  it('view=range の日数は両端を含めて 42 日まで', () => {
+    // 2026-09-27〜2026-11-07 は 42 日、2026-09-27〜2026-11-08 は 43 日
+    expect(
+      reservationListQuerySchema.safeParse({ view: 'range', from: '2026-09-27', to: '2026-11-07' })
+        .success,
+    ).toBe(true)
+    expect(
+      reservationListQuerySchema.safeParse({ view: 'range', from: '2026-09-27', to: '2026-11-08' })
+        .success,
+    ).toBe(false)
+  })
+
+  it('view=range で from・to が無い、形が違う、実在しない、from が to より後なら止める', () => {
+    for (const q of [
+      { view: 'range' },
+      { view: 'range', from: '2026-10-10' },
+      { view: 'range', to: '2026-10-10' },
+      { view: 'range', from: '2026-10-1', to: '2026-10-10' },
+      { view: 'range', from: '2026-02-30', to: '2026-03-01' },
+      { view: 'range', from: '2026-10-11', to: '2026-10-10' },
+    ]) {
+      expect(reservationListQuerySchema.safeParse(q).success, JSON.stringify(q)).toBe(false)
+    }
+  })
+
   it('形の違うカーソルは止める', () => {
     expect(reservationListQuerySchema.safeParse({ view: 'past', before: 'abc' }).success).toBe(
       false,

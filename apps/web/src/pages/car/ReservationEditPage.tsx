@@ -2,6 +2,7 @@ import {
   CAR_MESSAGES,
   createReservationEditSchema,
   reservationPhase,
+  toJstDate,
   type ReservationDetail,
   type ReservationEditInput,
 } from '@stylus/shared'
@@ -96,7 +97,8 @@ export function ReservationEditPage() {
       api['car-reservations'][':id'].$patch({ param: { id }, json }),
     )
     if (result.kind === 'ok') {
-      void navigate('/car')
+      // 直した後の開始の日を選んだ車の画面へ（CAR-F-005）
+      void navigate(`/car?date=${toJstDate(new Date(result.data.startsAt))}`)
       return { kind: 'ok' }
     }
     if (result.kind === 'unregistered') {
