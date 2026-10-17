@@ -6,10 +6,10 @@ import type {
   ReservationDetail,
   ReservationListResponse,
 } from '@stylus/shared'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, vi } from 'vitest'
-import { timeGridRef } from '../src/pages/car/timeGridRef'
+import { HOUR_HEIGHT } from '../src/pages/car/timeFrame'
 import { installFakeApi, json, meRoute } from './fakeApi'
 import { FAMILY, meOf, type FamilyKey } from './money'
 
@@ -165,8 +165,6 @@ export async function dayView(dayLabel: string): Promise<HTMLElement> {
 // 日の時間割の画面の帯（その日の時間割の画面であることも確かめる）
 export async function bandsOn(dayLabel: string): Promise<HTMLElement[]> {
   const timeGrid = await dayView(dayLabel)
-  // FullCalendar が時間割（日の列）を描き終えてから帯を数える
-  await waitFor(() => expect(timeGrid.querySelector('[data-date]')).not.toBeNull())
   return Array.from(timeGrid.querySelectorAll<HTMLElement>('[data-reservation-id]'))
 }
 
@@ -180,8 +178,89 @@ export async function fillDateTime(which: '開始' | '終了', date: string, tim
   if (time) await userEvent.type(timeInput, time)
 }
 
-// 時間割で範囲を選ぶ（日本時間の「YYYY-MM-DD HH:MM」。jsdom ではドラッグできないので FullCalendar の select を呼ぶ）
-export async function selectRange(from: string, to: string) {
-  await waitFor(() => expect(timeGridRef.current).not.toBeNull(), CALENDAR_WAIT)
-  act(() => timeGridRef.current!.getApi().select(jstIso(from), jstIso(to)))
+// ---- 時間割の枠（pointer のイベントで操作する） ----
+// jsdom では寸法がすべて0なので、時間割の面の上の端は 0。時刻の位置は「分 ÷ 60 × 1時間の高さ」になる
+
+const minutesOf = (time: string) => {
+  const [h, m] = time.split(':').map(Number) as [number, number]
+  return h * 60 + m
+}
+
+// 時刻（「9:07」「24:00」など）の、時間割の面の上の端からの距離
+export const yOf = (time: string) => (minutesOf(time) / 60) * HOUR_HEIGHT
+
+// 時間割の帯と枠の面
+function timeGridLane(): HTMLElement {
+  const lane = document.querySelector<HTMLElement>('[data-time-grid-lane]')
+  if (!lane) throw new Error('時間割が出ていない')
+  return lane
+}
+
+function frameElement(): HTMLElement {
+  const frame = document.querySelector<HTMLElement>('[data-frame]')
+  if (!frame) throw new Error('枠が出ていない')
+  return frame
+}
+
+const pointerInit = (y: number, x = 20) => ({
+  clientX: x,
+  clientY: y,
+  pointerId: 1,
+  pointerType: 'touch',
+  isPrimary: true,
+  button: 0,
+})
+
+// target で押して、moves の位置を順に通って、最後の位置で離す（x は横の位置）
+function press(
+  target: HTMLElement,
+  from: { x?: number; y: number },
+  ...moves: { x?: number; y: number }[]
+) {
+  fireEvent.pointerDown(target, pointerInit(from.y, from.x))
+  for (const m of moves) fireEvent.pointerMove(target, pointerInit(m.y, m.x))
+  const last = moves.at(-1) ?? from
+  fireEvent.pointerUp(target, pointerInit(last.y, last.x))
+}
+
+// 時間割の空いた所（帯の脇の余白を含む）をその時刻の位置でタップする
+export async function tapTimeGrid(time: string) {
+  await waitFor(() => timeGridLane(), CALENDAR_WAIT)
+  press(timeGridLane(), { y: yOf(time) })
+}
+
+// 出ている枠（「09:00〜10:00」の形。終了 24:00 は「24:00」）。無ければ null
+export function timeFrame(): string | null {
+  const frame = document.querySelector<HTMLElement>('[data-frame]')
+  return frame ? `${frame.dataset.frameStart}〜${frame.dataset.frameEnd}` : null
+}
+
+// 枠の上の端（start）・下の端（end）のつまみを、その時刻の位置まで引く
+export function dragFrameEdge(edge: 'start' | 'end', time: string) {
+  const frame = frameElement()
+  const handle = frame.querySelector<HTMLElement>(`[data-frame-handle="${edge}"]`)!
+  const now = edge === 'start' ? frame.dataset.frameStart! : frame.dataset.frameEnd!
+  press(handle, { y: yOf(now) }, { y: (yOf(now) + yOf(time)) / 2 }, { y: yOf(time) })
+}
+
+// 枠の中を引いて、その分だけ縦に動かす（下が正）
+export function dragFrameBy(minutes: number) {
+  const frame = frameElement()
+  const y = yOf(frame.dataset.frameStart!) + 4
+  const dy = (minutes / 60) * HOUR_HEIGHT
+  press(frame, { y }, { y: y + dy / 2 }, { y: y + dy })
+}
+
+// 枠をタップする（引かずに離す）
+export function tapFrame() {
+  const frame = frameElement()
+  press(frame, { y: yOf(frame.dataset.frameStart!) + 4 })
+}
+
+// 時刻 from をタップして枠を出し、下の端を to まで引く（from〜to の枠）
+export async function makeFrame(from: string, to: string) {
+  await tapTimeGrid(from)
+  // 出た枠の終わりがもう to なら引かない（同じ所へ引くと、動かずに離したタップになる）
+  if (timeFrame()?.endsWith(to.padStart(5, '0')) !== true) dragFrameEdge('end', to)
+  expect(timeFrame()).toBe(`${from.padStart(5, '0')}〜${to.padStart(5, '0')}`)
 }

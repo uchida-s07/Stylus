@@ -7,12 +7,12 @@ import { callApi } from '../../api/responses'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { combineResults, useApiLoad } from '../../components/useApiLoad'
 import { monthOf } from './calendarDates'
-import { DayTimeGrid } from './CarCalendar'
 import { CarPageFrame } from './CarPageFrame'
 import { NoCars } from './NoCars'
 import { ReservationDialog } from './ReservationDialog'
-import { toDateTimeFields, type ReservationFormValues } from './reservationFormValues'
-import { timeGridRef } from './timeGridRef'
+import type { ReservationFormValues } from './reservationFormValues'
+import { frameAt, frameToFields, type Frame } from './timeFrame'
+import { TimeGrid } from './TimeGrid'
 
 // 車の画面の日の時間割の画面（CAR-F-004・CAR-F-005。date は日本時間の YYYY-MM-DD）
 // 予約はその日だけを引く（from = to = その日）
@@ -21,15 +21,22 @@ export function CarDayView({ date }: { date: string }) {
   const [, setSearchParams] = useSearchParams()
   const location = useLocation()
   const navigate = useNavigate()
-  // 時間割で範囲を選んで出した予約の入力（開くたびに key と requestId を作り直す）
+  // 枠から出した予約の入力（開くたびに key と requestId を作り直す）
   // 開くときに履歴を1つ積み（入力の印 reservationDialog を持つ）、その履歴にいる間だけ出す
   // 端末の「戻る」・「キャンセル」・保存は、どれも積んだ履歴を戻して閉じる（日の画面からは離れない）
   const [dialog, setDialog] = useState<{ key: string; initial: ReservationFormValues }>()
   const dialogKey = (location.state as { reservationDialog?: string } | null)?.reservationDialog
   const dialogOpen = dialog !== undefined && dialog.key === dialogKey
+  // 時間割の枠（空いた所のタップで出し、端や中を引いて動かす）
+  // 枠から入力を開くと、その入力の key を枠に持たせる。入力の履歴から離れたら（閉じたら）その枠は出さない
+  const [framed, setFramed] = useState<{ frame: Frame; dialogKey?: string } | null>(null)
+  const frame =
+    framed && (framed.dialogKey === undefined || framed.dialogKey === dialogKey)
+      ? framed.frame
+      : null
   // 保存した予約の開始の日（入力の履歴を戻した後にその日へ移る）
   const dateAfterClose = useRef<string>(undefined)
-  // 範囲を選んだが「使う」の車が無い（CAR-F-004/AC-24）
+  // 空いた所をタップしたが「使う」の車が無い（CAR-F-004/AC-24）
   const [noActiveCars, setNoActiveCars] = useState(false)
   const { state, reload } = useApiLoad(async () =>
     combineResults([
@@ -42,25 +49,28 @@ export function CarDayView({ date }: { date: string }) {
 
   const activeCars = state.kind === 'ready' ? state.data[0].cars.filter((c) => c.isActive) : []
 
-  // 時間割で範囲を選んだ：開始・終了が入った入力を出す（車は「使う」の車が1台だけなら選んでおく）
-  function selectRange(start: Date, end: Date) {
-    if (activeCars.length === 0) {
-      timeGridRef.current?.getApi().unselect()
-      return setNoActiveCars(true)
-    }
+  // 空いた所をタップした：1時間の枠を出す（「使う」の車が無ければ枠を出さずに知らせる）
+  function tapEmpty(minute: number) {
+    if (activeCars.length === 0) return setNoActiveCars(true)
     setNoActiveCars(false)
-    const s = toDateTimeFields(start.toISOString())
-    const e = toDateTimeFields(end.toISOString())
+    setFramed({ frame: frameAt(minute) })
+  }
+
+  // 枠をタップした：枠の開始・終了が入った入力を出す（車は「使う」の車が1台だけなら選んでおく）
+  function openFrame() {
+    if (!frame) return
+    const f = frameToFields(date, frame)
     const key = crypto.randomUUID()
+    setFramed({ frame, dialogKey: key })
     void navigate({ search: location.search }, { state: { reservationDialog: key } })
     setDialog({
       key,
       initial: {
         carId: activeCars.length === 1 ? activeCars[0]!.id : '',
-        startDate: s.date,
-        startTime: s.time,
-        endDate: e.date,
-        endTime: e.time,
+        startDate: f.startDate,
+        startTime: f.startTime,
+        endDate: f.endDate,
+        endTime: f.endTime,
         destination: '',
         memo: '',
       },
@@ -78,11 +88,10 @@ export function CarDayView({ date }: { date: string }) {
     closeDialog()
   }
 
-  // 入力の履歴から離れた（「戻る」・「キャンセル」・保存）：選んだ範囲を消し、保存したならその日へ移って読み直す
+  // 入力の履歴から離れた（「戻る」・「キャンセル」・保存）：保存したならその日へ移って読み直す（枠は上で出さなくなる）
   // （別の日へ移ったときは車の画面が日の画面を作り直して読み込む）
   useEffect(() => {
     if (dialogKey !== undefined) return
-    timeGridRef.current?.getApi().unselect()
     const next = dateAfterClose.current
     if (next === undefined) return
     dateAfterClose.current = undefined
@@ -107,11 +116,15 @@ export function CarDayView({ date }: { date: string }) {
       ) : (
         <>
           {noActiveCars && <NoCars message="先に車を登録してください" />}
-          <DayTimeGrid
+          <TimeGrid
             date={date}
             cars={state.data[0].cars}
             reservations={state.data[1].reservations}
-            onSelectRange={selectRange}
+            frame={frame}
+            onTapEmpty={tapEmpty}
+            onFrameChange={(f) => setFramed({ frame: f })}
+            onClearFrame={() => setFramed(null)}
+            onOpenFrame={openFrame}
           />
         </>
       )}

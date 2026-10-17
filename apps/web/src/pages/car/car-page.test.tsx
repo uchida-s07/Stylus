@@ -322,7 +322,7 @@ describe('車の画面（CAR-F-005）', () => {
     expect(rest).toEqual([])
     expect(band).toHaveTextContent(/ノア.*使わない.*くうご/)
     expect(band!.dataset.inactive).toBe('true')
-    // 帯を薄く塗るクラスが FullCalendar の帯に付いている
+    // 帯に薄く塗るクラスが付いている
     expect(band!.closest('.car-band-inactive')).not.toBeNull()
   })
 
