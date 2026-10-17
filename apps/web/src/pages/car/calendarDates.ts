@@ -1,9 +1,9 @@
-import { addDays } from '@stylus/shared'
+import { addDays, toJstDate } from '@stylus/shared'
 
 // 車の画面の月のカレンダーの日付（日付はどれも日本時間の YYYY-MM-DD、月は YYYY-MM）
-// 週は日曜から（FullCalendar の ja と同じ）。月のカレンダーはいつも6週（42日）を出す
+// 週は日曜から。月のカレンダーはいつも6週（42日）を出す
 
-const VISIBLE_DAYS = 42
+export const VISIBLE_DAYS = 42
 
 // その日を含む月の1日
 export function monthStart(date: string): string {
@@ -34,4 +34,26 @@ export function moveMonth(month: string, delta: number): string {
   const [y, m] = month.split('-').map(Number) as [number, number]
   const months = y * 12 + (m - 1) + delta
   return `${String(Math.floor(months / 12)).padStart(4, '0')}-${String((months % 12) + 1).padStart(2, '0')}`
+}
+
+// 日ごとの予約（月のカレンダーの帯）：その日に一部でもかかる予約を、開始の早い順に（同じなら渡された順）
+// 終了がちょうど 0:00 の日には入れない。範囲（両端を含む）の外の日は入れない
+export function reservationsByDay<R extends { startsAt: string; endsAt: string }>(
+  reservations: R[],
+  range: { from: string; to: string },
+): Map<string, R[]> {
+  const byDay = new Map<string, R[]>()
+  const sorted = [...reservations].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))
+  for (const r of sorted) {
+    const first = toJstDate(new Date(r.startsAt))
+    const last = toJstDate(new Date(Date.parse(r.endsAt) - 1))
+    for (
+      let d = first < range.from ? range.from : first;
+      d <= last && d <= range.to;
+      d = addDays(d, 1)
+    ) {
+      byDay.set(d, [...(byDay.get(d) ?? []), r])
+    }
+  }
+  return byDay
 }

@@ -6,7 +6,7 @@ import type {
   ReservationDetail,
   ReservationListResponse,
 } from '@stylus/shared'
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, vi } from 'vitest'
 import { timeGridRef } from '../src/pages/car/timeGridRef'
@@ -116,29 +116,40 @@ export async function monthCalendar(month: string) {
   return calendar
 }
 
-// 月のカレンダーの日のボタン（データの属性に日付の見出し「10月7日(水)」を持つ）
-function dayButtons(calendar: HTMLElement) {
-  return Array.from(calendar.querySelectorAll<HTMLElement>('button[data-day-label]'))
+// 月のカレンダーの日のセル（名前は日付の見出し「10月7日(水)」のボタン）
+function dayCells(calendar: HTMLElement): HTMLElement[] {
+  return within(calendar)
+    .getAllByRole('button')
+    .filter((b) => /^\d+月\d+日\(.\)$/.test(b.getAttribute('aria-label') ?? ''))
 }
 
-// 月のカレンダーで印（予約あり）の付いた日を、日付の見出しで並べる
-export async function markedDays(month: string): Promise<string[]> {
+// 月のカレンダーのその日の短い帯と「他 n 件」（無ければ null）
+export async function monthDay(
+  month: string,
+  dayLabel: string,
+): Promise<{ bands: HTMLElement[]; more: string | null }> {
   const calendar = await monthCalendar(month)
-  await waitFor(() => expect(dayButtons(calendar)).toHaveLength(42))
-  return dayButtons(calendar)
-    .filter((b) => b.dataset.hasReservations === 'true')
-    .map((b) => b.dataset.dayLabel!)
+  const cell = within(calendar).getByRole('button', { name: dayLabel })
+  return {
+    bands: Array.from(cell.querySelectorAll<HTMLElement>('[data-reservation-id]')),
+    more: cell.querySelector('[data-more]')?.textContent ?? null,
+  }
+}
+
+// 月のカレンダーで帯の出ている日を、日付の見出しで並べる（42日のセルが揃っていることも確かめる）
+export async function daysWithBands(month: string): Promise<string[]> {
+  const calendar = await monthCalendar(month)
+  const cells = dayCells(calendar)
+  expect(cells).toHaveLength(42)
+  return cells
+    .filter((c) => c.querySelector('[data-reservation-id]') !== null)
+    .map((c) => c.getAttribute('aria-label')!)
 }
 
 // 月のカレンダーで日を押し、その日の時間割の画面へ移るのを待つ
-// （日のボタンは FullCalendar が aria-hidden にする日のセルの上の部分に入るので、役割ではなくデータの属性で探す）
 export async function selectDay(dayLabel: string) {
-  const button = await waitFor(() => {
-    const found = document.querySelector<HTMLElement>(`button[data-day-label="${dayLabel}"]`)
-    if (!found) throw new Error(`月のカレンダーに ${dayLabel} が無い`)
-    return found
-  }, CALENDAR_WAIT)
-  await userEvent.click(button)
+  const calendar = await screen.findByRole('region', { name: /のカレンダー$/ }, CALENDAR_WAIT)
+  await userEvent.click(within(calendar).getByRole('button', { name: dayLabel }))
   await dayView(dayLabel)
 }
 

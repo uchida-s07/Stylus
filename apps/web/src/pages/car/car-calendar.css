@@ -1,4 +1,4 @@
-/* 車の画面のカレンダー（CarCalendar.tsx） */
+/* 車の画面のカレンダー（月のカレンダーは MonthCalendar.tsx、時間割は CarCalendar.tsx） */
 
 /* 時間割の帯の右に、帯の無い余白をいつも残す（指で押して範囲を選び始められる幅。spec 004 T-1 の V-2）
    テーマの dayLaneInnerClass（右 2.5%）に足されるクラスなので、詳細度を上げて上書きする */
@@ -6,38 +6,90 @@
   margin-inline-end: 48px;
 }
 
-/* 月のカレンダーの日のセルの上の部分（テーマは数字を右に寄せる）。日のボタンを幅いっぱいに置く */
-.car-day-top.car-day-top {
-  display: block;
-  width: 100%;
-  padding: 0;
+/* 月のカレンダー（MonthCalendar.tsx）：7列の格子。曜日の行と、6週の日のセル */
+.car-month {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-top: 1px solid var(--mantine-color-default-border);
+  border-left: 1px solid var(--mantine-color-default-border);
 }
 
-/* 月のカレンダーの日。押すとその日を選ぶ */
-.car-day {
+.car-month-weekday {
+  padding: 2px 0;
+  border-right: 1px solid var(--mantine-color-default-border);
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  font-size: var(--mantine-font-size-xs);
+  text-align: center;
+}
+
+/* 日のセル。押すとその日の時間割の画面へ（帯の上を押しても同じ） */
+.car-month-day {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 2px;
-  width: 100%;
-  min-height: 2.5rem;
-  padding: 4px 0;
+  min-width: 0;
+  min-height: 4.75rem;
+  padding: 2px;
   border: 0;
-  border-radius: 4px;
+  border-right: 1px solid var(--mantine-color-default-border);
+  border-bottom: 1px solid var(--mantine-color-default-border);
   background: transparent;
   color: inherit;
   font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
-/* 予約のある日の印 */
-.car-day-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--mantine-color-blue-filled);
+.car-month-day:hover {
+  background: var(--mantine-color-default-hover);
 }
 
+/* ほかの月の日は薄く */
+.car-month-day[data-outside='true'] {
+  color: var(--mantine-color-dimmed);
+}
+
+.car-month-day-number {
+  align-self: center;
+  min-width: 1.5em;
+  border-radius: 999px;
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1.5em;
+  text-align: center;
+}
+
+/* 今日の日は数字を丸で囲む */
+.car-month-day[data-today='true'] > .car-month-day-number {
+  background: var(--mantine-color-blue-filled);
+  color: var(--mantine-color-white);
+  font-weight: 700;
+}
+
+/* 予約ごとの短い帯（車の名前）。色は車の色（style で渡す） */
+.car-month-band {
+  overflow: hidden;
+  padding: 0 2px;
+  border-radius: 2px;
+  color: var(--mantine-color-white);
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+/* 「使わない」の車の帯は薄くする */
+.car-month-band[data-inactive='true'] {
+  opacity: 0.45;
+}
+
+.car-month-more {
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+/* 時間割の帯（CarCalendar.tsx） */
 .car-band {
   overflow: hidden;
   padding: 1px 2px;

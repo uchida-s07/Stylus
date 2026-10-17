@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { isMonthString, monthStart, monthVisibleRange, moveMonth } from './calendarDates'
+import {
+  isMonthString,
+  monthStart,
+  monthVisibleRange,
+  moveMonth,
+  reservationsByDay,
+} from './calendarDates'
 
 // 月のカレンダーの日付の求め方（AC ではない確認）
 describe('calendarDates', () => {
@@ -45,5 +51,50 @@ describe('calendarDates', () => {
     expect(isMonthString('2026-00')).toBe(false)
     expect(isMonthString('2026-1')).toBe(false)
     expect(isMonthString('2026-10-01')).toBe(false)
+  })
+
+  describe('日ごとの予約の振り分け（月のカレンダーの帯）', () => {
+    // 日本時間の「YYYY-MM-DD HH:MM」で予約を作る
+    const r = (id: string, from: string, to: string) => ({
+      id,
+      startsAt: new Date(`${from.replace(' ', 'T')}:00+09:00`).toISOString(),
+      endsAt: new Date(`${to.replace(' ', 'T')}:00+09:00`).toISOString(),
+    })
+    const october = { from: '2026-09-27', to: '2026-11-07' }
+    const ids = (map: Map<string, { id: string }[]>) =>
+      Object.fromEntries([...map].map(([d, list]) => [d, list.map((x) => x.id)]))
+
+    it('その日に一部でもかかる予約を、またいだ日それぞれに入れる', () => {
+      const byDay = reservationsByDay([r('a', '2026-10-10 22:00', '2026-10-12 02:00')], october)
+      expect(ids(byDay)).toEqual({ '2026-10-10': ['a'], '2026-10-11': ['a'], '2026-10-12': ['a'] })
+    })
+
+    it('終了がちょうど 0:00 の日には入れない', () => {
+      const byDay = reservationsByDay([r('a', '2026-10-08 22:00', '2026-10-09 00:00')], october)
+      expect(ids(byDay)).toEqual({ '2026-10-08': ['a'] })
+    })
+
+    it('日ごとに開始の早い順に並べる（日をまたいで前の日から続く予約が先）', () => {
+      const byDay = reservationsByDay(
+        [
+          r('late', '2026-10-11 15:00', '2026-10-11 16:00'),
+          r('early', '2026-10-11 09:00', '2026-10-11 10:00'),
+          r('overnight', '2026-10-10 22:00', '2026-10-11 02:00'),
+        ],
+        october,
+      )
+      expect(ids(byDay)['2026-10-11']).toEqual(['overnight', 'early', 'late'])
+    })
+
+    it('見えている範囲の外の日は入れない', () => {
+      const byDay = reservationsByDay(
+        [
+          r('before', '2026-09-26 22:00', '2026-09-27 02:00'),
+          r('after', '2026-11-07 22:00', '2026-11-08 02:00'),
+        ],
+        october,
+      )
+      expect(ids(byDay)).toEqual({ '2026-09-27': ['before'], '2026-11-07': ['after'] })
+    })
   })
 })

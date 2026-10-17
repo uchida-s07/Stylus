@@ -8,7 +8,7 @@ import {
   carList,
   bandsOn,
   installCarApi,
-  markedDays,
+  daysWithBands,
   reservationDetail,
   reservationList,
   setDeviceClock,
@@ -108,7 +108,7 @@ describe('予約の中身の画面（CAR-F-005〜007）', () => {
     expect(await bandsOn('10月10日(土)')).toEqual([])
     expect(router.state.location.search).toBe('?date=2026-10-10')
     await userEvent.click(screen.getByRole('button', { name: '月へ戻る' }))
-    expect(await markedDays('2026年10月')).toEqual([])
+    expect(await daysWithBands('2026年10月')).toEqual([])
     expect(deletesOf(requests).map((d) => new URL(d.url).pathname)).toEqual([
       `/car-reservations/${r.id}`,
     ])

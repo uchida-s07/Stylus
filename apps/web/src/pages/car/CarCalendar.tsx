@@ -1,5 +1,4 @@
 import FullCalendar from '@fullcalendar/react'
-import dayGridPlugin from '@fullcalendar/react/daygrid'
 import interactionPlugin from '@fullcalendar/react/interaction'
 import jaLocale from '@fullcalendar/react/locales/ja'
 import classicThemePlugin from '@fullcalendar/react/themes/classic'
@@ -8,7 +7,6 @@ import '@fullcalendar/react/skeleton.css'
 import '@fullcalendar/react/themes/classic/theme.css'
 import '@fullcalendar/react/themes/classic/palette.css'
 import {
-  addDays,
   formatJstDate,
   jstStartOfDay,
   reservationPhase,
@@ -17,133 +15,22 @@ import {
   type CarListItem,
   type Reservation,
 } from '@stylus/shared'
-import { Badge, Button, Group, Text, Title } from '@mantine/core'
+import { Badge, Text } from '@mantine/core'
 import { useNavigate } from 'react-router'
-import { monthOf, monthVisibleRange, moveMonth } from './calendarDates'
 import { carColor } from './carColors'
 import { timeRange } from './format'
 import { timeGridRef } from './timeGridRef'
 import './car-calendar.css'
 
-// 車の画面のカレンダー（CAR-F-005）：月のカレンダーの画面の月のカレンダーと、日の画面の時間割
+// 車の画面の日の画面の時間割（CAR-F-004・CAR-F-005）。月のカレンダーは MonthCalendar.tsx（自作）
 // FullCalendar には日本時間（Asia/Tokyo）を渡して出すだけにし、日付はアプリが toJstDate() で求める（COMMON-N-009）
-// どちらも月・日が変わるたびに車の画面が作り直す（最初の表示位置をその月・日に合わせるため）
+// 日が変わるたびに車の画面が作り直す（最初の表示位置をその日に合わせるため）
 
 const COMMON_OPTIONS = {
   timeZone: 'Asia/Tokyo',
   locale: jaLocale,
   headerToolbar: false,
 } as const
-
-// 予約が一部でもかかる日（終了がちょうど 0:00 の日は含めない）。範囲の外は数えない
-function reservedDays(reservations: Reservation[], range: { from: string; to: string }) {
-  const days = new Set<string>()
-  for (const r of reservations) {
-    const first = toJstDate(new Date(r.startsAt))
-    const last = toJstDate(new Date(new Date(r.endsAt).getTime() - 1))
-    for (
-      let d = first < range.from ? range.from : first;
-      d <= last && d <= range.to;
-      d = addDays(d, 1)
-    ) {
-      days.add(d)
-    }
-  }
-  return days
-}
-
-// 月のカレンダー（month は YYYY-MM）。日を押すとその日の時間割の画面へ。予約のある日に印（点）を出す
-// 日のボタンは、FullCalendar が読み上げから外す（aria-hidden）日のセルの上の部分に入る。日付の読み上げはセルが持つ
-export function MonthCalendar({
-  month,
-  reservations,
-  onSelectDate,
-  onMoveMonth,
-}: {
-  month: string
-  // 見えている範囲の予約
-  reservations: Reservation[]
-  onSelectDate: (date: string) => void
-  onMoveMonth: (month: string) => void
-}) {
-  const title = `${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月`
-  const days = reservedDays(reservations, monthVisibleRange(`${month}-01`))
-  return (
-    <section aria-label={`${title}のカレンダー`}>
-      <Group justify="space-between" wrap="nowrap" mb="xs">
-        <Title order={2} size="h4">
-          {title}
-        </Title>
-        <MonthMoves month={month} onMoveMonth={onMoveMonth} />
-      </Group>
-      <FullCalendar
-        {...COMMON_OPTIONS}
-        plugins={[dayGridPlugin, classicThemePlugin]}
-        initialView="dayGridMonth"
-        initialDate={`${month}-01`}
-        height="auto"
-        // 日のボタンをセルの幅いっぱいに広げる（car-calendar.css）
-        dayCellTopClass="car-day-top"
-        dayCellTopContent={(cell) => {
-          // cell.date は日本時間のその日の 0:00
-          const date = toJstDate(cell.date)
-          const label = formatJstDate(cell.date)
-          const hasReservations = days.has(date)
-          return (
-            <button
-              type="button"
-              className="car-day"
-              aria-label={hasReservations ? `${label}、予約あり` : label}
-              data-day-label={label}
-              data-has-reservations={hasReservations}
-              onClick={() => onSelectDate(date)}
-            >
-              <span>{Number(date.slice(8))}</span>
-              {hasReservations && <span className="car-day-dot" aria-hidden />}
-            </button>
-          )
-        }}
-      />
-    </section>
-  )
-}
-
-// 前の月・次の月と「今日」（今月へ）
-function MonthMoves({
-  month,
-  onMoveMonth,
-}: {
-  month: string
-  onMoveMonth: (month: string) => void
-}) {
-  return (
-    <Group gap={4} wrap="nowrap">
-      <Button
-        variant="default"
-        size="xs"
-        aria-label="前の月"
-        onClick={() => onMoveMonth(moveMonth(month, -1))}
-      >
-        ‹
-      </Button>
-      <Button
-        variant="default"
-        size="xs"
-        onClick={() => onMoveMonth(monthOf(toJstDate(new Date())))}
-      >
-        今日
-      </Button>
-      <Button
-        variant="default"
-        size="xs"
-        aria-label="次の月"
-        onClick={() => onMoveMonth(moveMonth(month, 1))}
-      >
-        ›
-      </Button>
-    </Group>
-  )
-}
 
 // 日の画面の時間割（0:00〜24:00、30分の目盛り）。予約を帯で出す。見出しは日の画面が出す
 export function DayTimeGrid({

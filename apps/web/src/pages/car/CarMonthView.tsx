@@ -5,8 +5,8 @@ import { callApi } from '../../api/responses'
 import { ErrorScreen } from '../../components/ErrorScreen'
 import { combineResults, useApiLoad } from '../../components/useApiLoad'
 import { monthVisibleRange } from './calendarDates'
-import { MonthCalendar } from './CarCalendar'
 import { CarPageFrame } from './CarPageFrame'
+import { MonthCalendar } from './MonthCalendar'
 import { NoCars } from './NoCars'
 
 // 車の画面の月のカレンダーの画面（CAR-F-005。month は YYYY-MM）
@@ -36,6 +36,7 @@ export function CarMonthView({ month }: { month: string }) {
       ) : (
         <MonthCalendar
           month={month}
+          cars={state.data[0].cars}
           reservations={state.data[1].reservations}
           onSelectDate={(date) => void navigate({ search: `?date=${date}` })}
           onMoveMonth={(m) => setSearchParams({ month: m }, { replace: true })}

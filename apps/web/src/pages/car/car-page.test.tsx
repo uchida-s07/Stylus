@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -8,7 +8,8 @@ import {
   carList,
   dayView,
   installCarApi,
-  markedDays,
+  daysWithBands,
+  monthDay,
   monthCalendar,
   reservation,
   reservationDetail,
@@ -49,7 +50,7 @@ describe('車の画面（CAR-F-005）', () => {
     return q.get('from') === date && q.get('to') === date ? [r] : []
   }
 
-  it('[CAR-F-005/AC-1] 父が開くと、10月のカレンダーの7日と8日に印が出る', async () => {
+  it('[CAR-F-005/AC-1] 父が開くと、2026年10月のカレンダーが出て、7日に「ノア」の帯が2本、8日に1本出る', async () => {
     installCarApi(
       {
         ...withCars,
@@ -66,7 +67,11 @@ describe('車の画面（CAR-F-005）', () => {
     )
     renderApp('/car')
 
-    expect(await markedDays('2026年10月')).toEqual(['10月7日(水)', '10月8日(木)'])
+    expect(await daysWithBands('2026年10月')).toEqual(['10月7日(水)', '10月8日(木)'])
+    const oct7 = await monthDay('2026年10月', '10月7日(水)')
+    expect(oct7.bands.map((b) => b.textContent)).toEqual(['ノア', 'ノア'])
+    const oct8 = await monthDay('2026年10月', '10月8日(木)')
+    expect(oct8.bands.map((b) => b.textContent)).toEqual(['ノア'])
   })
 
   it('[CAR-F-005/AC-20] 父が10月のカレンダーで7日をタップすると、10月7日の時間割の画面に移り、せいごの帯（8:00〜10:00）と、くうごの帯（19:00〜22:00、「使用中」付き）が出る', async () => {
@@ -123,7 +128,7 @@ describe('車の画面（CAR-F-005）', () => {
     expect(band).toHaveTextContent(/ノア.*くうご.*9:00〜12:00.*大学/)
   })
 
-  it('[CAR-F-005/AC-2] 10月9日に予約が無いとき、カレンダーの9日に印は出ず、9日をタップすると10月9日の時間割に帯は出ない', async () => {
+  it('[CAR-F-005/AC-2] 10月9日に予約が無いとき、カレンダーの9日に帯は出ず、9日をタップすると10月9日の時間割に帯は出ない', async () => {
     installCarApi({
       ...withCars,
       'GET /car-reservations': () =>
@@ -137,13 +142,14 @@ describe('車の画面（CAR-F-005）', () => {
     })
     const { router } = renderApp('/car')
 
-    expect(await markedDays('2026年10月')).toEqual(['10月8日(木)', '10月10日(土)'])
+    expect((await monthDay('2026年10月', '10月9日(金)')).bands).toEqual([])
+    expect(await daysWithBands('2026年10月')).toEqual(['10月8日(木)', '10月10日(土)'])
     await selectDay('10月9日(金)')
     expect(await bandsOn('10月9日(金)')).toEqual([])
     expect(router.state.location.search).toBe('?date=2026-10-09')
   })
 
-  it('[CAR-F-005/AC-3] 10月10日 22:00〜10月11日 2:00 は、10月のカレンダーの10日と11日の両方に印が出る', async () => {
+  it('[CAR-F-005/AC-3] 10月10日 22:00〜10月11日 2:00 は、10月のカレンダーの10日と11日の両方に「ノア」の帯が出る', async () => {
     installCarApi({
       ...withCars,
       'GET /car-reservations': () =>
@@ -151,7 +157,125 @@ describe('車の画面（CAR-F-005）', () => {
     })
     renderApp('/car')
 
-    expect(await markedDays('2026年10月')).toEqual(['10月10日(土)', '10月11日(日)'])
+    expect(await daysWithBands('2026年10月')).toEqual(['10月10日(土)', '10月11日(日)'])
+    for (const day of ['10月10日(土)', '10月11日(日)']) {
+      const { bands } = await monthDay('2026年10月', day)
+      expect(bands.map((b) => b.textContent)).toEqual(['ノア'])
+    }
+  })
+
+  it('[CAR-F-005/AC-4] 「使わない」の車「ノア」のくうごの予約は、月のカレンダーの10日に薄い帯で出る', async () => {
+    installCarApi({
+      'GET /cars': () => json(carList(carItem('ノア', { isActive: false }))),
+      'GET /car-reservations': () =>
+        json(
+          reservationList([
+            reservation({ carActive: false, from: '2026-10-10 09:00', to: '2026-10-10 12:00' }),
+          ]),
+        ),
+    })
+    renderApp('/car')
+
+    const { bands } = await monthDay('2026年10月', '10月10日(土)')
+    expect(bands.map((b) => [b.textContent, b.dataset.inactive])).toEqual([['ノア', 'true']])
+  })
+
+  it('[CAR-F-005/AC-16] くうごの「ノア」と母の「フィット」の予約がある10日に、「ノア」と「フィット」の2本の帯が、それぞれの車の色で出る', async () => {
+    installCarApi({
+      'GET /cars': () =>
+        json(carList(carItem('ノア', { colorIndex: 1 }), carItem('フィット', { colorIndex: 0 }))),
+      'GET /car-reservations': () =>
+        json(
+          reservationList([
+            reservation({ car: 'ノア', from: '2026-10-10 09:00', to: '2026-10-10 12:00' }),
+            reservation({
+              car: 'フィット',
+              who: 'mother',
+              from: '2026-10-10 13:00',
+              to: '2026-10-10 15:00',
+            }),
+          ]),
+        ),
+    })
+    renderApp('/car')
+
+    const { bands, more } = await monthDay('2026年10月', '10月10日(土)')
+    expect(bands.map((b) => [b.textContent, b.dataset.colorIndex])).toEqual([
+      ['ノア', '1'],
+      ['フィット', '0'],
+    ])
+    // 帯はそれぞれの車の色で塗られている
+    expect(bands[0]!.style.background).not.toBe('')
+    expect(bands[0]!.style.background).not.toBe(bands[1]!.style.background)
+    expect(more).toBeNull()
+  })
+
+  it('[CAR-F-005/AC-17] 10月10日に「ノア」の予約が4件あると、10日に帯が2本と「他 2 件」が出る', async () => {
+    installCarApi({
+      ...withCars,
+      'GET /car-reservations': () =>
+        json(
+          reservationList([
+            reservation({ from: '2026-10-10 08:00', to: '2026-10-10 09:00' }),
+            reservation({ from: '2026-10-10 10:00', to: '2026-10-10 11:00' }),
+            reservation({ from: '2026-10-10 12:00', to: '2026-10-10 13:00' }),
+            reservation({ from: '2026-10-10 14:00', to: '2026-10-10 15:00' }),
+          ]),
+        ),
+    })
+    renderApp('/car')
+
+    const { bands, more } = await monthDay('2026年10月', '10月10日(土)')
+    expect(bands).toHaveLength(2)
+    expect(more).toBe('他 2 件')
+  })
+
+  it('[CAR-F-005/AC-27] 10月10日に「ノア」の予約が3件あると、10日に帯が3本出て、「他 n 件」は出ない', async () => {
+    installCarApi({
+      ...withCars,
+      'GET /car-reservations': () =>
+        json(
+          reservationList([
+            reservation({ from: '2026-10-10 08:00', to: '2026-10-10 09:00' }),
+            reservation({ from: '2026-10-10 10:00', to: '2026-10-10 11:00' }),
+            reservation({ from: '2026-10-10 12:00', to: '2026-10-10 13:00' }),
+          ]),
+        ),
+    })
+    renderApp('/car')
+
+    const { bands, more } = await monthDay('2026年10月', '10月10日(土)')
+    expect(bands.map((b) => b.textContent)).toEqual(['ノア', 'ノア', 'ノア'])
+    expect(more).toBeNull()
+  })
+
+  // AC ではない確認
+  it('月のカレンダーは日曜から6週を出し、ほかの月の日と今日の日が分かる', async () => {
+    installCarApi({ ...withCars, 'GET /car-reservations': () => json(reservationList([])) })
+    renderApp('/car')
+
+    expect(await daysWithBands('2026年10月')).toEqual([])
+    const calendar = await monthCalendar('2026年10月')
+    const cell = (name: string) => within(calendar).getByRole('button', { name })
+    // 2026年10月1日は木曜なので、9月27日(日)から始まり11月7日(土)まで
+    expect(cell('9月27日(日)').dataset.outside).toBe('true')
+    expect(cell('11月7日(土)').dataset.outside).toBe('true')
+    expect(cell('10月1日(木)').dataset.outside).toBe('false')
+    expect(cell('10月7日(水)').dataset.today).toBe('true')
+    expect(cell('10月8日(木)').dataset.today).toBe('false')
+  })
+
+  it('月のカレンダーの日の帯の上を押しても、その日の時間割の画面へ移る', async () => {
+    installCarApi({
+      ...withCars,
+      'GET /car-reservations': () =>
+        json(reservationList([reservation({ from: '2026-10-10 09:00', to: '2026-10-10 12:00' })])),
+    })
+    renderApp('/car')
+    const { bands } = await monthDay('2026年10月', '10月10日(土)')
+    await userEvent.click(bands[0]!)
+
+    expect(await bandsOn('10月10日(土)')).toHaveLength(1)
   })
 
   it('[CAR-F-005/AC-21] 10月10日 22:00〜10月11日 2:00 は、10日をタップすると10月10日の時間割に「22:00〜10月11日(日) 2:00」の帯で出る', async () => {
@@ -299,7 +423,7 @@ describe('車の画面（CAR-F-005）', () => {
     expect(band).toHaveTextContent('使用中')
   })
 
-  it('[CAR-F-005/AC-9] 10月のカレンダーから前の月へ移ると、2026年9月のカレンダーの20日に印が出る', async () => {
+  it('[CAR-F-005/AC-9] 10月のカレンダーから前の月へ移ると、2026年9月のカレンダーの20日に「ノア」の帯が出る', async () => {
     const { requests } = installCarApi({
       ...withCars,
       'GET /car-reservations': () => json(reservationList([seigoSep20()])),
@@ -308,7 +432,9 @@ describe('車の画面（CAR-F-005）', () => {
     await monthCalendar('2026年10月')
     await userEvent.click(screen.getByRole('button', { name: '前の月' }))
 
-    expect(await markedDays('2026年9月')).toEqual(['9月20日(日)'])
+    expect(await daysWithBands('2026年9月')).toEqual(['9月20日(日)'])
+    const { bands } = await monthDay('2026年9月', '9月20日(日)')
+    expect(bands.map((b) => b.textContent)).toEqual(['ノア'])
     // 9月の見えている範囲を引き直している
     expect(rangeRequestsOf(requests).at(-1)).toEqual({
       view: 'range',
@@ -368,7 +494,7 @@ describe('車の画面（CAR-F-005）', () => {
     expect(router.state.location.search).toBe('?date=2026-10-10')
   })
 
-  it('[CAR-F-005/AC-13] 10月のカレンダーから次の月へ移ると、2026年11月のカレンダーが出て、1日に印が出る', async () => {
+  it('[CAR-F-005/AC-13] 10月のカレンダーから次の月へ移ると、2026年11月のカレンダーが出て、1日に「ノア」の帯が出る', async () => {
     installCarApi({
       ...withCars,
       'GET /car-reservations': () =>
@@ -382,7 +508,9 @@ describe('車の画面（CAR-F-005）', () => {
     await monthCalendar('2026年10月')
     await userEvent.click(screen.getByRole('button', { name: '次の月' }))
 
-    expect(await markedDays('2026年11月')).toEqual(['11月1日(日)'])
+    expect(await daysWithBands('2026年11月')).toEqual(['11月1日(日)'])
+    const { bands } = await monthDay('2026年11月', '11月1日(日)')
+    expect(bands.map((b) => b.textContent)).toEqual(['ノア'])
     expect(router.state.location.search).toBe('?month=2026-11')
   })
 
@@ -436,7 +564,7 @@ describe('車の画面（CAR-F-005）', () => {
         json(reservationList([reservation({ from: '2026-10-20 09:00', to: '2026-10-20 10:00' })])),
     })
     renderApp('/car')
-    expect(await markedDays('2026年10月')).toEqual(['10月20日(火)'])
+    expect(await daysWithBands('2026年10月')).toEqual(['10月20日(火)'])
     await selectDay('10月20日(火)')
 
     expect(await bandsOn('10月20日(火)')).toHaveLength(1)
