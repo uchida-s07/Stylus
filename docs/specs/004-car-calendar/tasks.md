@@ -238,12 +238,18 @@ Red を確かめようがないタスク（DB 変更、廃止した AC のテス
   - 完了条件: 対象のテストとテスト全体が通る。リファクタ後にもう一度テスト全体が通る
   - 結果: 2026-10-17。`TimeGrid` は、空いた所で始めた操作が横に 50px 以上、かつ横の動きが縦より大きいときに `onSwipeDay`（左は次の日、右は前の日）を呼ぶ。枠の上で始めた操作は枠を動かす操作のまま。`CarDayView` は `?date=` を置き換えて日を移る。枠は、日を移ったとき（ボタン・スワイプ・「月へ戻る」）も日の画面を離れたときも、日の画面が作り直される・消えるので残らない（コードは足していない）。テスト全体（707件）・lint・型の検査が通った。リファクタで直すところは無かったので、2回目の全体の実行はしていない。スワイプと縦のスクロールのぶつかり、50px の手ざわりは T-20 で手で確かめる
 
-- [ ] T-19: FullCalendar を外し、ビルドの大きさを測り直す
+- [x] T-19: FullCalendar を外し、ビルドの大きさを測り直す
   - 対応: spec「3. 変更差分」画面の「部品」「大きさ」
   - 対象ファイル: `apps/web/package.json`（`@fullcalendar/react`・`temporal-polyfill` を外す）、`pnpm-lock.yaml`、`apps/web/src/pages/car/LazyCarPage.tsx`（注釈を直す）、`car-calendar.css`（FullCalendar の上書きを消す）、そのほか FullCalendar を指す注釈
   - 内容: コードに `@fullcalendar`・`temporal-polyfill` の参照が残っていないことを確かめてから依存を外す。車の画面は遅延読み込み（`React.lazy`）のまま。T-1 と同じ測り方でビルドの大きさ（gzip）を測り、入れる前（T-1）・入れた後（T-6）・外した後を「結果」に並べる
   - Red: 対象外（依存を外す。振る舞いはテスト全体で確かめる）
   - 完了条件: テスト全体・lint・型の検査が通る。ビルドの大きさが「結果」に書かれている
+  - 結果: 2026-10-17。`apps/web/src`・`apps/web/test` に `@fullcalendar`・`temporal-polyfill` の参照が無いことを確かめてから、`corepack pnpm --filter web remove @fullcalendar/react temporal-polyfill` で外した（`pnpm-lock.yaml` からも消えた）。`LazyCarPage.tsx` の注釈の「FullCalendar」を直した。車の画面は遅延読み込みのまま。ビルドの大きさ（`vite build` の gzip。T-1 と同じ測り方）：
+    - 最初に読む JS：入れる前（T-1）265.61 kB → 入れた後（T-6）266.21 kB → 外した後 266.42 kB
+    - CSS（最初に読む）：34.17 kB → 34.17 kB → 34.17 kB。HTML：0.36 kB のまま
+    - 車の画面の塊：（T-1 は無し）→ JS 72.98 kB・CSS 3.91 kB → JS 6.31 kB・CSS 0.97 kB
+    - 最初に読む JS と CSS の合計：299.78 kB → 300.38 kB → 300.59 kB。全体：300.14 kB → 377.63 kB → 308.23 kB
+    - 出力の JS に `fc-classic`・`dayGridMonth`・`Temporal.` の文字が無いことを確かめた。テスト全体（707件）・lint・型の検査が通った
 
 ## 7. 仕上げ（確かめ直し）
 
